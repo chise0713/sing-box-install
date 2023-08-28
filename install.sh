@@ -6,6 +6,7 @@ tag=
 type=
 go_type=
 remove_type=
+beta=false
 
 identify_the_operating_system_and_architecture() {
   if [[ "$(uname)" == 'Linux' ]]; then
@@ -276,7 +277,7 @@ install_go() {
         echo -e "export PATH=\$PATH:/usr/local/go/bin" >> /root/.bashrc
       fi
     else
-      echo "ERROR: The architecture is not supported. Try to install go by yourself"
+      echo "\033[1;31m\033[1mERROR:\033[0m The architecture is not supported. Try to install go by yourself"
       exit 1
     fi
   echo -e "INFO: go installed PATH: $GO_PATH"
@@ -323,9 +324,21 @@ curl_install() {
   [[ $MACHINE == arm ]] && CURL_MACHINE=armv7
   [[ $MACHINE == arm64 ]] && CURL_MACHINE=arm64
   if [[ $CURL_MACHINE == amd64 ]] || [[ $CURL_MACHINE == arm64 ]] || [[ $CURL_MACHINE == armv7 ]]; then
-    SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vr | head -n 1)
-    echo "Newest version found: $SING_VERSION"
-    curl -o /tmp/$SING_VERSION.tar.gz https://github.com/SagerNet/sing-box/releases/latest/download/$SING_VERSION.tar.gz
+    if [[ $beta == false ]];then
+      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
+      echo "Newest version found: $SING_VERSION"
+    elif [[ $beta == true ]];then
+      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-rc\.\d+-linux-$CURL_MACHINE|sing-box-\d+\.\d+\.\d+-beta\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
+      echo "Newest beta/rc version found: $SING_VERSION"
+      CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+-rc\.\d+|\d+\.\d+\.\d+-beta\.\d+")
+    else
+      echo -e "\033[1;31m\033[1mERROR:\033[0m beta type is not true or false.\nExiting."
+    fi
+    if [[ -z $CURL_TAG ]];then 
+      curl -o /tmp/$SING_VERSION.tar.gz https://github.com/SagerNet/sing-box/releases/latest/download/$SING_VERSION.tar.gz
+    else
+      curl -o /tmp/$SING_VERSION.tar.gz https://github.com/SagerNet/sing-box/releases/download/v$CURL_TAG/$SING_VERSION.tar.gz
+    fi
     tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
     cp -r /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box
     chmod +x /usr/local/bin/sing-box
@@ -415,6 +428,9 @@ for arg in "$@"; do
   case $arg in
     --purge)
       remove_type="purge"
+      ;;
+    --beta)
+      beta=true
       ;;
     --go)
       type="go"
