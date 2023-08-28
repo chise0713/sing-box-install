@@ -27,6 +27,12 @@ Will be Install after sing-box run:
  bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install
 ```
 
+**Install sing-box Pre-release version**
+
+```
+ bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --beta
+```
+
 **Install sing-box Using GO**
 
 ```

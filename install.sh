@@ -293,10 +293,10 @@ go_install() {
   [[ $MACHINE == amd64 ]] && GOAMD64=v2
   if [[ $go_type == default ]];then
     echo -e "\
-Use \033[38;5;208m@chika0801\033[0m's template by default.\
+Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api .\
 "
     if ! CGO_ENABLED=1 GOOS=linux GOARCH=$MACHINE \
-    go install -v -tags with_wireguard,with_quic,with_utls,with_reality_server github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
+    go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
       echo -e "Go Install Failed.\nExiting."
       exit 1
     fi
@@ -367,9 +367,7 @@ main() {
   install_log_and_config
   install_service
 
-  echo -e "\
-Installation Complete\
-"
+  # echo -e "Thanks \033[38;5;208m@chika0801\033[0m.\nInstallation Complete"
   exit 0
 }
 
@@ -400,6 +398,7 @@ Removed: /usr/local/bin/sing-box
 Removed: /etc/systemd/system/sing-box.service
 Removed: /etc/systemd/system/sing-box@.service\
 "
+# echo -e "Thanks \033[38;5;208m@chika0801\033[0m.\nInstallation Complete"
   exit 0
 }
 # Show help
@@ -414,10 +413,12 @@ If no action is specified, then help will be selected
 
 OPTION:
   install:
+    --beta                    If it's specified, the scrpit will install latest Pre-release version of sing-box. 
+                              If it's not specified, the scrpit will install latest release version by default.
     --go                      If it's specified, the scrpit will use go to install sing-box. 
                               If it's not specified, the scrpit will use curl by default.
     --tag=[Tags]              sing-box Install tag, if you specified it, the script will use go to install sing-box, and use your custom tags. 
-                              If it's not specified, the scrpit will use \033[38;5;208m@chika0801\033[0m's template by default.
+                              If it's not specified, the scrpit will use offcial default Tags by default.
   remove:
     --purge                   Remove all the sing-box files, include logs, configs, etc
 "
