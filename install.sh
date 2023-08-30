@@ -7,6 +7,7 @@ type=
 go_type=
 remove_type=
 beta=false
+win=false
 
 identify_the_operating_system_and_architecture() {
   if [[ "$(uname)" == 'Linux' ]]; then
@@ -288,14 +289,23 @@ go_install() {
 
   if ! GO_PATH=$(which go);then
     install_go
+  else
+    echo "INFO: GO Found, PATH=$GO_PATH"
   fi
 
-  [[ $MACHINE == amd64 ]] && GOAMD64=v2
+  if [[ $win == true ]];then 
+    export GOOS=windows
+    [[ $MACHINE == amd64 ]] && export GOAMD64=v3
+  elif [[ $win == false ]];then
+    export GOOS=linux
+    [[ $MACHINE == amd64 ]] && export GOAMD64=v2
+  fi
+
   if [[ $go_type == default ]];then
     echo -e "\
 Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api.\
 "
-    if ! CGO_ENABLED=1 GOOS=linux GOARCH=$MACHINE \
+    if ! CGO_ENABLED=1 GOARCH=$MACHINE \
     go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
       echo -e "Go Install Failed.\nExiting."
       exit 1
@@ -305,17 +315,24 @@ Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_
 Using custom config:
 Tags: $tag\
 "
-    if ! CGO_ENABLED=1 GOOS=linux GOARCH=$MACHINE \
+    if ! CGO_ENABLED=1 GOARCH=$MACHINE \
     go install -v -tags $tag github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
       echo -e "Go Install Failed.\nExiting."
       exit 1
     fi
   fi
-  ln -sf /root/go/bin/sing-box /usr/local/bin/sing-box
-  echo -e "\
+
+  if [[ $win == false ]];then
+    ln -sf /root/go/bin/sing-box /usr/local/bin/sing-box
+      echo -e "\
 Installed: /root/go/bin/sing-box
 Installed: /usr/local/bin/sing-box\
 "
+  elif [[ $win == true ]];then
+    cp -rf /root/go/bin/windows_amd64/sing-box.exe /root/sing-box.exe
+    echo -e "Installed: /root/go/bin/sing-box.exe\nInstalled: /root/sing-box.exe"
+    exit 0
+  fi
 }
 
 # Function for installation
@@ -419,6 +436,7 @@ OPTION:
                               If it's not specified, the scrpit will use curl by default.
     --tag=[Tags]              sing-box Install tag, if you specified it, the script will use go to install sing-box, and use your custom tags. 
                               If it's not specified, the scrpit will use offcial default Tags by default.
+    --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
   remove:
     --purge                   Remove all the sing-box files, include logs, configs, etc
 "
@@ -429,6 +447,10 @@ for arg in "$@"; do
   case $arg in
     --purge)
       remove_type="purge"
+      ;;
+    --win)
+      win=true
+      type="go"
       ;;
     --beta)
       beta=true

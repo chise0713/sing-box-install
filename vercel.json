@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh" }
+  ]
+}

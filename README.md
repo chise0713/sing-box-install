@@ -39,6 +39,12 @@ Will be Install after sing-box run:
  bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --go
 ```
 
+**Complie sing-box for windows**
+
+```
+ bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --win
+```
+
 **Install sing-box Using GO with custom Tags**
 
 ```
