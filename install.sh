@@ -293,10 +293,10 @@ go_install() {
   [[ $MACHINE == amd64 ]] && GOAMD64=v2
   if [[ $go_type == default ]];then
     echo -e "\
-Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api.\
+Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api.\
 "
     if ! CGO_ENABLED=1 GOOS=linux GOARCH=$MACHINE \
-    go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
+    go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
       echo -e "Go Install Failed.\nExiting."
       exit 1
     fi
