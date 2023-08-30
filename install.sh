@@ -293,7 +293,7 @@ go_install() {
   [[ $MACHINE == amd64 ]] && GOAMD64=v2
   if [[ $go_type == default ]];then
     echo -e "\
-Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api .\
+Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api.\
 "
     if ! CGO_ENABLED=1 GOOS=linux GOARCH=$MACHINE \
     go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
@@ -340,7 +340,7 @@ curl_install() {
       curl -o /tmp/$SING_VERSION.tar.gz https://github.com/SagerNet/sing-box/releases/download/v$CURL_TAG/$SING_VERSION.tar.gz
     fi
     tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
-    cp -r /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box
+    cp -rf /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box
     chmod +x /usr/local/bin/sing-box
     echo -e "\
 Installed: /usr/local/bin/sing-box\
