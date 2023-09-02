@@ -19,42 +19,43 @@ Will be Install after sing-box run:
 /usr/local/share/sing-box/geosite.db
 ```
 
-## Usage
+## Basic Usage
 
 **Install sing-box**
 
 ```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install
-```
-
-**Install sing-box Pre-release version**
-
-```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --beta
-```
-
-**Install sing-box Using GO**
-
-```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --go
-```
-
-**Complie sing-box for windows**
-
-```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --win
-```
-
-**Install sing-box Using GO with custom Tags**
-
-```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- install --tag=with_gvisor,with_dhcp --go
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install
 ```
 
 **Remove sing-box**
 
 ```
- bash -c "$(curl -L https://github.com/KoinuDayo/sing-box-Install/raw/master/install.sh)" -- remove
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ remove
+```
+## Advance
+
+**Install sing-box Pre-release version**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --beta
+```
+
+**Install sing-box Using GO**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --go
+```
+
+**Complie sing-box for windows**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --win
+```
+
+**Install sing-box Using GO with custom Tags**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --tag=with_gvisor,with_dhcp --go
 ```
 
 ## Star History
