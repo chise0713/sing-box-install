@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-
+set -e
 # Initialize variables
 action=
 tag=
@@ -8,6 +8,7 @@ go_type=
 remove_type=
 beta=false
 win=false
+CGO_ENABLED=0
 
 identify_the_operating_system_and_architecture() {
   if [[ "$(uname)" == 'Linux' ]]; then
@@ -126,7 +127,7 @@ check_root() {
 }
 
 curl() {
-  if ! $(type -P curl) -L -q --retry 5 --retry-delay 10 --retry-max-time 60 "$@";then
+  if ! $(type -P curl) -L -q --retry 5 --retry-delay 5 --retry-max-time 60 "$@";then
     echo -e "\033[1;31m\033[1mERROR:\033[0m Curl Failed, check your network"
     exit 1
   fi
@@ -202,7 +203,8 @@ LimitNOFILE=infinity
 WantedBy=multi-user.target
 EOF
   echo -e "Installed: /etc/systemd/system/sing-box@.service"
-  if systemctl enable sing-box && systemctl start sing-box;then
+  systemctl daemon-reload
+  if systemctl enable sing-box && systemctl restart sing-box;then
     echo "INFO: Enable and start sing-box.service"
   else
     echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable and start sing-box.service"
@@ -212,7 +214,7 @@ EOF
 
 install_building_components() {
   if [[ $PACKAGE_MANAGEMENT_INSTALL == 'apt -y --no-install-recommends install' ]]; then
-    if ! dpkg -l | grep build-essential;then
+    if ! dpkg -l | awk '{print $2"\t","Version="$3,"ARCH="$4}' | grep build-essential ;then
       echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} build-essential
     fi
@@ -244,82 +246,54 @@ install_building_components() {
   fi
 }
 
-# Function for go_installation
-install_go() {
-    [[ $MACHINE == 386 ]] && GO_MACHINE=386
-    [[ $MACHINE == amd64 ]] && GO_MACHINE=amd64
-    [[ $MACHINE == arm ]] && GO_MACHINE=armv6l
-    [[ $MACHINE == arm64 ]] && GO_MACHINE=arm64
-    if [[ $GO_MACHINE == amd64 ]] || [[ $GO_MACHINE == arm64 ]] || [[ $GO_MACHINE == armv6l ]] || [[ $GO_MACHINE == 386 ]]; then
-      GO_VERSION=$(curl -sL https://go.dev/dl/ | sed -n 's/.*\(go[0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p' | head -1)
-      echo -e "INFO: Installing go" 
-      curl -o /tmp/go.tar.gz https://go.dev/dl/$GO_VERSION.linux-$GO_MACHINE.tar.gz
-      rm -rf /usr/local/go
-      tar -C /usr/local -xzf /tmp/go.tar.gz
-      rm /tmp/go.tar.gz
-      echo -e "export PATH=\$PATH:/usr/local/go/bin" > /etc/profile.d/go.sh
-      source /etc/profile.d/go.sh
-      go version
-      GO_PATH=$(which go)
-      # install go for every users
-      for user in $(ls /home); do
-          local user_home="/home/$user"
-          local bashrc_path="$user_home/.bashrc"
-          local userid=$(id -u $user)
-          local usergid=$(id -g $user)
-          if [ -f "$bashrc_path" ]; then
-            if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "$bashrc_path"; then
-              echo "export PATH=\$PATH:/usr/local/go/bin" >> "$bashrc_path"
-              chown $userid:$usergid "$bashrc_path"
-            fi
-          fi
-      done
-      if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "/root/.bashrc"; then
-        echo -e "export PATH=\$PATH:/usr/local/go/bin" >> /root/.bashrc
-      fi
-    else
-      echo "\033[1;31m\033[1mERROR:\033[0m The architecture is not supported. Try to install go by yourself"
-      exit 1
-    fi
-  echo -e "INFO: go installed PATH: $GO_PATH"
-}
 go_install() {
-  install_software "which" "which"
   install_building_components
 
-  if ! GO_PATH=$(which go);then
-    install_go
+  if ! GO_PATH=$(type -P go);then
+    bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
   else
     echo "INFO: GO Found, PATH=$GO_PATH"
   fi
 
   if [[ $win == true ]];then 
     export GOOS=windows
-    [[ $MACHINE == amd64 ]] && export GOAMD64=v3
+    export GOARCH=amd64 && export GOAMD64=v3
   elif [[ $win == false ]];then
     export GOOS=linux
     [[ $MACHINE == amd64 ]] && export GOAMD64=v2
+  fi
+
+  if [[ $CGO_ENABLED == 0 ]];then
+    export CGO_ENABLED=0
+  elif [[ $CGO_ENABLED == 1 ]];then
+    export CGO_ENABLED=1
+  fi
+  
+  if echo $tag |grep -oP with_lwip >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Tag with_lwip \e[1mMUST HAVE environment variable CGO_ENABLED=1\e[0m\nExiting."
+    exit 1
+  fi
+
+  if echo $tag |grep -oP with_embedded_tor >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Tag with_embedded_tor \e[1mMUST HAVE environment variable CGO_ENABLED=1\e[0m\nExiting."
+    exit 1
   fi
 
   if [[ $go_type == default ]];then
     echo -e "\
 Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api.\
 "
-    if ! CGO_ENABLED=1 GOARCH=$MACHINE \
-    go install -v -tags with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
-      echo -e "Go Install Failed.\nExiting."
-      exit 1
-    fi
+    tag="with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api"
   elif [[ $go_type == custom ]]; then
     echo -e "\
 Using custom config:
 Tags: $tag\
 "
-    if ! CGO_ENABLED=1 GOARCH=$MACHINE \
-    go install -v -tags $tag github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
+  fi
+
+  if ! GOARCH=$MACHINE go install -v -tags $tag github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
       echo -e "Go Install Failed.\nExiting."
       exit 1
-    fi
   fi
 
   if [[ $win == false ]];then
@@ -340,14 +314,15 @@ curl_install() {
   [[ $MACHINE == amd64 ]] && CURL_MACHINE=amd64
   [[ $MACHINE == arm ]] && CURL_MACHINE=armv7
   [[ $MACHINE == arm64 ]] && CURL_MACHINE=arm64
-  if [[ $CURL_MACHINE == amd64 ]] || [[ $CURL_MACHINE == arm64 ]] || [[ $CURL_MACHINE == armv7 ]]; then
+  [[ $MACHINE == s390x ]] && CURL_MACHINE=s390x
+  if [[ $CURL_MACHINE == amd64 ]] || [[ $CURL_MACHINE == arm64 ]] || [[ $CURL_MACHINE == armv7 ]] || [[ $CURL_MACHINE == s390x ]]; then
     if [[ $beta == false ]];then
       SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
       echo "Newest version found: $SING_VERSION"
     elif [[ $beta == true ]];then
-      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-rc\.\d+-linux-$CURL_MACHINE|sing-box-\d+\.\d+\.\d+-beta\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
+      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
       echo "Newest beta/rc version found: $SING_VERSION"
-      CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+-rc\.\d+|\d+\.\d+\.\d+-beta\.\d+")
+      CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+")
     else
       echo -e "\033[1;31m\033[1mERROR:\033[0m beta type is not true or false.\nExiting."
     fi
@@ -381,8 +356,8 @@ main() {
     curl_install
   fi
 
-  install_log_and_config
-  install_service
+  [[ $win == false ]] && install_log_and_config
+  [[ $win == false ]] && install_service
 
   # echo -e "Thanks \033[38;5;208m@chika0801\033[0m.\nInstallation Complete"
   exit 0
@@ -420,7 +395,7 @@ Removed: /etc/systemd/system/sing-box@.service\
 }
 # Show help
 help() {
-  echo -e "usage: $0 ACTION [OPTION]...
+  echo -e "usage: install.sh ACTION [OPTION]...
 
 ACTION:
 install                   Install/Update sing-box
@@ -436,6 +411,7 @@ OPTION:
                               If it's not specified, the scrpit will use curl by default.
     --tag=[Tags]              sing-box Install tag, if you specified it, the script will use go to install sing-box, and use your custom tags. 
                               If it's not specified, the scrpit will use offcial default Tags by default.
+    --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
   remove:
     --purge                   Remove all the sing-box files, include logs, configs, etc
@@ -458,10 +434,14 @@ for arg in "$@"; do
     --go)
       type="go"
       ;;
+    --cgo)
+      CGO_ENABLED=1
+      type="go"
+      ;;
     --tag=*)
       tag="${arg#*=}"
       go_type=custom
-      type=go
+      type="go"
       ;;
     help)
       action="help"

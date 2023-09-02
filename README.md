@@ -1,4 +1,4 @@
-# sing-box-Install
+# sing-box-install
 
 Bash script for installing sing-box in operating systems such as Arch / CentOS / Debian / OpenSUSE that support systemd.
 
@@ -46,6 +46,12 @@ Will be Install after sing-box run:
  bash -c "$(curl -L https://sing-box.vercel.app)" @ install --go
 ```
 
+**Install sing-box and set environment variable `CGO_ENABLED=1` while compling**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --cgo
+```
+
 **Complie sing-box for windows**
 
 ```
@@ -60,7 +66,7 @@ Will be Install after sing-box run:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=KoinuDayo/sing-box-Install&type=Timeline)](https://star-history.com/#KoinuDayo/sing-box-Install&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=chise0713/sing-box-Install&type=Timeline)](https://star-history.com/#chise0713/sing-box-Install&Timeline)
 
 ## Thanks
 [@chika0801](https://github.com/chika0801)
