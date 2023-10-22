@@ -40,6 +40,13 @@ Will be Install after sing-box run:
  bash -c "$(curl -L https://sing-box.vercel.app)" @ install --beta
 ```
 
+
+**Install custom version of sing-box**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --version=1.5.3
+```
+
 **Install sing-box Using GO**
 
 ```
