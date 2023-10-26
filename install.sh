@@ -337,12 +337,14 @@ Try to use \"--type=go\" to install\
       CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+")
     fi
   else
-    if curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-$SING_VERSION-linux-$CURL_MACHINE">/dev/null;then
-      SING_VERSION=$(echo "$SING_VERSION" | sed "s/$SING_VERSION/sing-box-$SING_VERSION-linux-$CURL_MACHINE/")
-      CURL_TAG=$((echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+")||(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+"))
-    else
+    CURL_TAG=$SING_VERSION
+    if curl -L \
+    https://github.com/SagerNet/sing-box/releases/download/v$CURL_TAG/sing-box-$SING_VERSION-linux-$CURL_MACHINE.tar.gz \
+    --range 0-721 | grep 'Not Found'>/dev/null;then
       echo "No such a version."
       exit 1
+    else
+      SING_VERSION=$(echo "$SING_VERSION" | sed "s/$SING_VERSION/sing-box-$SING_VERSION-linux-$CURL_MACHINE/")
     fi
   fi
   if [[ -z $CURL_TAG ]];then 
