@@ -134,88 +134,6 @@ curl() {
   fi
 }
 
-install_log_and_config() {
-  if [ ! -d /usr/local/etc/sing-box ];then
-    if ! install -d -m 700 /usr/local/etc/sing-box;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box\""
-      exit 1
-    else
-      echo "Installed \"/usr/local/etc/sing-box\""
-    fi
-    if ! install -m 700 /dev/null /usr/local/etc/sing-box/config.json;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box/config.json\""
-      exit 1
-    else
-      echo -e "Installed \"/usr/local/etc/sing-box/config.json\""
-      echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
-    fi
-  fi
-  if [ ! -d /usr/local/share/sing-box ];then
-    if ! install -d -m 700 /usr/local/share/sing-box;then
-      echo "\033[1;31m\033[1mERROR:\033[0m Failed to Install: /usr/local/share/sing-box"
-      exit 1
-    else
-      echo "Installed \"/usr/local/share/sing-box\""
-    fi
-  fi
-}
-
-# Function for service installation
-install_service() {
-  if [ -f /etc/systemd/system/sing-box.service ];then
-    return 0
-  fi
-  cat <<EOF > /etc/systemd/system/sing-box.service
-[Unit]
-Description=sing-box service
-Documentation=https://sing-box.sagernet.org
-After=network.target nss-lookup.target
-
-[Service]
-User=root
-WorkingDirectory=/usr/local/share/sing-box
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/config.json
-ExecReload=/bin/kill -HUP \$MAINPID
-Restart=on-failure
-RestartSec=10
-LimitNOFILE=infinity
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  echo -e "Installed \"/etc/systemd/system/sing-box.service\""
-  cat <<EOF > /etc/systemd/system/sing-box@.service
-[Unit]
-Description=sing-box service
-Documentation=https://sing-box.sagernet.org
-After=network.target nss-lookup.target
-
-[Service]
-User=root
-WorkingDirectory=/usr/local/share/sing-box
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
-ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
-ExecReload=/bin/kill -HUP \$MAINPID
-Restart=on-failure
-RestartSec=10
-LimitNOFILE=infinity
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
-  systemctl daemon-reload
-  if systemctl enable sing-box && systemctl restart sing-box;then
-    echo "INFO: Enable and start sing-box.service"
-  else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable and start sing-box.service"
-    exit 1
-  fi
-}
-
 install_building_components() {
   if [[ $PACKAGE_MANAGEMENT_INSTALL == 'apt -y --no-install-recommends install' ]]; then
     if ! dpkg -l | awk '{print $2"\t","Version="$3,"ARCH="$4}' | grep build-essential ;then
@@ -359,6 +277,115 @@ Try to use \"--type=go\" to install\
   echo -e "Installed \"/usr/local/bin/sing-box\""
 }
 
+install_service() {
+  if [ -f /etc/systemd/system/sing-box.service ] && ! ls /usr/local/etc/sing-box -dl | grep root ;then
+    return 0
+  fi
+  cat <<EOF > /etc/systemd/system/sing-box.service
+[Unit]
+Description=sing-box service
+Documentation=https://sing-box.sagernet.org
+After=network.target nss-lookup.target
+
+[Service]
+User=$INSTALL_USER
+WorkingDirectory=/usr/local/share/sing-box
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/config.json
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  echo -e "Installed \"/etc/systemd/system/sing-box.service\""
+  cat <<EOF > /etc/systemd/system/sing-box@.service
+[Unit]
+Description=sing-box service
+Documentation=https://sing-box.sagernet.org
+After=network.target nss-lookup.target
+
+[Service]
+User=$INSTALL_USER
+WorkingDirectory=/usr/local/share/sing-box
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
+  systemctl daemon-reload
+  if systemctl enable sing-box && systemctl restart sing-box;then
+    echo "INFO: Enable and start sing-box.service"
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable and start sing-box.service"
+    exit 1
+  fi
+}
+
+install_config() {
+  if [ ! -d /usr/local/etc/sing-box ];then
+    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/etc/sing-box;then
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box\""
+      exit 1
+    else
+      echo "Installed \"/usr/local/etc/sing-box\""
+    fi
+    if ! install -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /dev/null /usr/local/etc/sing-box/config.json;then
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box/config.json\""
+      exit 1
+    else
+      echo -e "Installed \"/usr/local/etc/sing-box/config.json\""
+      echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
+    fi
+  elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
+    chown $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box
+    for file in $(find /usr/local/etc/sing-box -type f -print);do
+      chown $INSTALL_USER:$INSTALL_GROUP $file
+    done
+    file=
+  fi
+  if [ ! -d /usr/local/share/sing-box ];then
+    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/share/sing-box;then
+      echo "\033[1;31m\033[1mERROR:\033[0m Failed to Install: /usr/local/share/sing-box"
+      exit 1
+    else
+      echo "Installed \"/usr/local/share/sing-box\""
+    fi
+  elif ! ls /usr/local/share/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
+    chown $INSTALL_USER:$INSTALL_GROUP /usr/local/share/sing-box
+    for file in $(find /usr/local/share/sing-box -type f -print);do
+      chown $INSTALL_USER:$INSTALL_GROUP $file
+    done
+    file=
+  fi
+}
+
+install_sysuser() {
+  cat <<EOF > /usr/lib/sysusers.d/sing-box.conf
+u sing-box - "sing-box service" /usr/local/share/sing-box -
+EOF
+  systemd-sysusers /usr/lib/sysusers.d/sing-box.conf
+}
+
+install_compiletion() {
+  sing-box completion bash |
+    install -Dm644 /dev/stdin "/usr/share/bash-completion/completions/sing-box"
+  sing-box completion fish |
+    install -Dm644 /dev/stdin "/usr/share/fish/vendor_completions.d/sing-box.fish"
+  sing-box completion zsh |
+    install -Dm644 /dev/stdin "/usr/share/zsh/site-functions/_sing-box"
+}
+
 uninstall() {
   if ! ls /etc/systemd/system/sing-box.service >/dev/null 2>&1 ;then
     echo -e "sing-box not Installed.\nExiting."
@@ -371,10 +398,18 @@ uninstall() {
     exit 1
   fi
 
-  NEED_REMOVE+=( '/etc/systemd/system/sing-box.service'  '/etc/systemd/system/sing-box@.service' '/usr/local/bin/sing-box' )
+  NEED_REMOVE+=(
+    '/etc/systemd/system/sing-box.service'
+    '/etc/systemd/system/sing-box@.service'
+    '/usr/local/bin/sing-box'
+    '/usr/lib/sysusers.d/sing-box.conf'
+    '/usr/share/bash-completion/completions/sing-box'
+    '/usr/share/fish/vendor_completions.d/sing-box.fish'
+    '/usr/share/zsh/site-functions/_sing-box'
+  )
 
   if [[ $PURGE == true ]];then
-    NEED_REMOVE+=('/usr/local/etc/sing-box/')
+    NEED_REMOVE+=( '/usr/local/etc/sing-box/' '/usr/local/share/sing-box/' )
   fi
 
   for file in "${NEED_REMOVE[@]}"; do
@@ -387,6 +422,16 @@ uninstall() {
         fi
       fi
   done
+
+  if getent passwd sing-box>/dev/null;then
+    SING_BOX_UID=$(id sing-box -u) && SING_BOX_GID=$(id sing-box -g)
+    echo -e "Deleting group 'sing-box' with GID $SING_BOX_GID."
+    userdel sing-box
+    echo -e "Deleting user 'sing-box' (sing-box service) with UID $SING_BOX_UID and GID $SING_BOX_GID."
+  fi
+
+  systemctl daemon-reload
+  
   exit 0
 }
 
@@ -403,15 +448,18 @@ main() {
     curl_install
   fi
 
-  [[ $win == false ]] && install_log_and_config
+  [[ $win == false ]] && [[ -z $INSTALL_USER ]] && install_sysuser
+  [[ -z $INSTALL_USER ]] && INSTALL_USER=sing-box
+  INSTALL_GROUP=$(groups $INSTALL_USER|awk '{printf $1}')
+  [[ $win == false ]] && install_config
   [[ $win == false ]] && install_service
+  [[ $win == false ]] && install_compiletion
 
-  # echo -e "Thanks \033[38;5;208m@chika0801\033[0m.\nInstallation Complete"
   exit 0
 }
 
-# Show help
 help() {
+  echo -e "Thanks \033[38;5;208m@chika0801\033[0m."
   echo -e "usage: install.sh ACTION [OPTION]...
 
 ACTION:
@@ -430,6 +478,7 @@ OPTION:
                               If it's not specified, the scrpit will use offcial default Tags by default.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
+    --user=[User]             Install sing-box in specified user, e.g, -u root'
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
   remove:
     --purge                   Remove all the sing-box files, include logs, configs, etc
@@ -446,6 +495,9 @@ for arg in "$@"; do
     --win)
       win=true
       type="go"
+      ;;
+    --user=*)
+      INSTALL_USER="${arg#*=}"
       ;;
     --beta)
       beta=true

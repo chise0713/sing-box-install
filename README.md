@@ -47,6 +47,12 @@ Will be Install after sing-box run:
  bash -c "$(curl -L https://sing-box.vercel.app)" @ install --version=1.5.3
 ```
 
+**Install sing-box using custom user**
+
+```
+ bash -c "$(curl -L https://sing-box.vercel.app)" @ install --user=root
+```
+
 **Install sing-box Using GO**
 
 ```
