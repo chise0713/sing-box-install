@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 set -e
-# Initialize variables
+
 action=
 tag=
 type=
@@ -10,6 +10,7 @@ beta=false
 win=false
 PURGE=false
 CGO_ENABLED=0
+RESTART_TEMP=$(mktemp)
 
 identify_the_operating_system_and_architecture() {
   if [[ "$(uname)" == 'Linux' ]]; then
@@ -119,7 +120,6 @@ install_software() {
   fi
 }
 
-# Function for check wheater user is running at root
 check_root() {
   if [[ $EUID -ne 0 ]]; then
     echo -e "\033[1;31m\033[1mERROR:\033[0m You have to use root to run this script"
@@ -128,7 +128,7 @@ check_root() {
 }
 
 curl() {
-  if ! $(type -P curl) -L -q --retry 5 --retry-delay 5 --retry-max-time 60 "$@";then
+  if ! $(type -P curl) -# -L -q --retry 5 --retry-delay 5 --retry-max-time 60 "$@";then
     echo -e "\033[1;31m\033[1mERROR:\033[0m Curl Failed, check your network"
     exit 1
   fi
@@ -214,16 +214,18 @@ Tags: $tag\
   fi
 
   if ! GOARCH=$MACHINE go install -v -tags $tag github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
-      echo -e "Go Install Failed.\nExiting."
-      exit 1
+    echo -e "Go Install Failed.\nExiting."
+    exit 1
   fi
 
   if [[ $win == false ]];then
-    ln -sf /root/go/bin/sing-box /usr/local/bin/sing-box
-      echo -e "\
-Installed: /root/go/bin/sing-box
-Installed: /usr/local/bin/sing-box\
-"
+    if install -m 755 /root/go/bin/sing-box /usr/local/bin/sing-box;then
+      echo -e "Installed \"/usr/local/bin/sing-box\""
+      echo -n 'true' > $RESTART_TEMP
+    else
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/bin/sing-box\""
+      exit 1
+    fi
   elif [[ $win == true ]];then
     cp -rf /root/go/bin/windows_amd64/sing-box.exe /root/sing-box.exe
     echo -e "Installed: /root/go/bin/sing-box.exe\nInstalled: /root/sing-box.exe"
@@ -231,7 +233,6 @@ Installed: /usr/local/bin/sing-box\
   fi
 }
 
-# Function for installation
 curl_install() {
   [[ $MACHINE == amd64 ]] && CURL_MACHINE=amd64
   [[ $MACHINE == arm ]] && CURL_MACHINE=armv7
@@ -247,12 +248,12 @@ Try to use \"--type=go\" to install\
 
   if [[ -z $SING_VERSION ]];then
     if [[ $beta == false ]];then
-      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
+      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
       echo "Newest version found: $SING_VERSION"
     elif [[ $beta == true ]];then
-      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases|grep -oP "sing-box-\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
-      echo "Newest beta/rc version found: $SING_VERSION"
-      CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+(-rc|-beta|-alpha)\.\d+")
+      SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+.*-linux-$CURL_MACHINE"| sed "s/-linux-$CURL_MACHINE$/-zzzzz-linux-$CURL_MACHINE/" | sort -Vru | sed "s/-zzzzz-linux-$CURL_MACHINE$/-linux-$CURL_MACHINE/" | head -n 1)
+      echo "Newest version found: $SING_VERSION"
+      CURL_TAG=$(echo $SING_VERSION | (grep -oP "\d+\.\d+\.\d+.*\.\d+" || grep -oP "\d+\.\d+\.\d+"))
     fi
   else
     CURL_TAG=$SING_VERSION
@@ -265,6 +266,15 @@ Try to use \"--type=go\" to install\
       SING_VERSION=$(echo "$SING_VERSION" | sed "s/$SING_VERSION/sing-box-$SING_VERSION-linux-$CURL_MACHINE/")
     fi
   fi
+
+  if [ -f /usr/local/bin/sing-box ];then
+    CURRENT_SING_VERSION=$(sing-box version | (grep -oP "\d+\.\d+\.\d+.*"|| grep -oP "\d+\.\d+\.\d+") | head -1)
+    if echo "$SING_VERSION" | grep "sing-box-$CURRENT_SING_VERSION-linux-$CURL_MACHINE">/dev/null;then
+      echo "Your sing-box is up to date"
+      return 0
+    fi
+  fi
+
   if [[ -z $CURL_TAG ]];then 
     curl -o /tmp/$SING_VERSION.tar.gz https://github.com/SagerNet/sing-box/releases/latest/download/$SING_VERSION.tar.gz
   else
@@ -272,15 +282,22 @@ Try to use \"--type=go\" to install\
   fi
 
   tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
-  cp -rf /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box
-  chmod +x /usr/local/bin/sing-box
-  echo -e "Installed \"/usr/local/bin/sing-box\""
+  if install -m 755 /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box;then
+    echo -e "Installed \"/usr/local/bin/sing-box\""
+    echo -n 'true' > $RESTART_TEMP
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/bin/sing-box\""
+    exit 1
+  fi
 }
 
 install_service() {
-  if [ -f /etc/systemd/system/sing-box.service ] && ! ls /usr/local/etc/sing-box -dl | grep root ;then
+  while [ -f /etc/systemd/system/sing-box.service ];do
+    if ! cat /etc/systemd/system/sing-box.service | grep "User=$INSTALL_USER">/dev/null;then
+      break
+    fi
     return 0
-  fi
+  done
   cat <<EOF > /etc/systemd/system/sing-box.service
 [Unit]
 Description=sing-box service
@@ -324,8 +341,12 @@ WantedBy=multi-user.target
 EOF
   echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
   systemctl daemon-reload
-  if systemctl enable sing-box && systemctl restart sing-box;then
-    echo "INFO: Enable and start sing-box.service"
+: '------------------------'
+  wait $PID
+: '------------------------'
+  if systemctl enable sing-box && systemctl start sing-box;then
+    echo "INFO: Enabled and started sing-box.service"
+    echo -n 'false' > $RESTART_TEMP
   else
     echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable and start sing-box.service"
     exit 1
@@ -348,54 +369,93 @@ install_config() {
       echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
     fi
   elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box
-    for file in $(find /usr/local/etc/sing-box -type f -print);do
-      chown $INSTALL_USER:$INSTALL_GROUP $file
-    done
-    file=
+    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box
   fi
   if [ ! -d /usr/local/share/sing-box ];then
     if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/share/sing-box;then
-      echo "\033[1;31m\033[1mERROR:\033[0m Failed to Install: /usr/local/share/sing-box"
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/share/sing-box\""
       exit 1
     else
-      echo "Installed \"/usr/local/share/sing-box\""
+      echo -e "Installed \"/usr/local/share/sing-box\""
     fi
   elif ! ls /usr/local/share/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown $INSTALL_USER:$INSTALL_GROUP /usr/local/share/sing-box
-    for file in $(find /usr/local/share/sing-box -type f -print);do
-      chown $INSTALL_USER:$INSTALL_GROUP $file
-    done
-    file=
+    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/share/sing-box
   fi
 }
 
 install_sysuser() {
+  if [ -f /usr/lib/sysusers.d/sing-box.conf ];then
+    return 0
+  fi
   cat <<EOF > /usr/lib/sysusers.d/sing-box.conf
 u sing-box - "sing-box service" /usr/local/share/sing-box -
 EOF
+  echo -e "Installed \"/usr/lib/sysusers.d/sing-box.conf\""
   systemd-sysusers /usr/lib/sysusers.d/sing-box.conf
 }
 
 install_compiletion() {
-  sing-box completion bash |
-    install -Dm644 /dev/stdin "/usr/share/bash-completion/completions/sing-box"
-  sing-box completion fish |
-    install -Dm644 /dev/stdin "/usr/share/fish/vendor_completions.d/sing-box.fish"
-  sing-box completion zsh |
-    install -Dm644 /dev/stdin "/usr/share/zsh/site-functions/_sing-box"
+  if ! [ -f /usr/share/bash-completion/completions/sing-box ];then
+    if \
+      sing-box completion bash |\
+        install -Dm644 /dev/stdin "/usr/share/bash-completion/completions/sing-box";then
+      echo -e "Installed \"/usr/share/bash-completion/completions/sing-box\""
+    else
+        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/bash-completion/completions/sing-box\""
+        exit 1
+    fi
+  fi
+  if ! [ -f /usr/share/fish/vendor_completions.d/sing-box.fish ];then
+    if \
+      sing-box completion fish |\
+        install -Dm644 /dev/stdin "/usr/share/fish/vendor_completions.d/sing-box.fish";then
+      echo -e "Installed \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
+    else
+        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
+        exit 1
+    fi
+  fi
+  if ! [ -f /usr/share/zsh/site-functions/_sing-box ];then
+    if \
+      sing-box completion zsh |\
+        install -Dm644 /dev/stdin "/usr/share/zsh/site-functions/_sing-box";then
+      echo -e "Installed \"/usr/share/zsh/site-functions/_sing-box\""
+    else
+        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/zsh/site-functions/_sing-box\""
+        exit 1
+    fi
+  fi
+}
+
+restart_sing-box() {
+  if systemctl is-active --quiet sing-box.service; then
+    echo "INFO: sing-box.service is running, restarting it"
+    if ! systemctl restart sing-box.service;then
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart sing-box\nExiting."
+      exit 1
+    fi
+  else
+    echo "INFO: sing-box.service not running."
+  fi
+  services=$(systemctl list-units --full --all | grep 'sing-box@.*\.service' | grep running | awk '{print $1}')
+  for service in $services;do
+    echo "INFO: $service.service is running, restarting it"
+    systemctl restart $service || ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart $service\nExiting." && exit 1 )
+  done
 }
 
 uninstall() {
-  if ! ls /etc/systemd/system/sing-box.service >/dev/null 2>&1 ;then
+  if ! ([ -f /etc/systemd/system/sing-box.service ] || [ -f /usr/local/bin/sing-box ]) ;then
     echo -e "sing-box not Installed.\nExiting."
     exit 1
   fi
-  if systemctl stop sing-box && systemctl disable sing-box ;then
-    echo -e "INFO: Stoped and disabled sing-box.service"
-  else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Stop and disable sing-box.service"
-    exit 1
+  if [ -f /etc/systemd/system/sing-box.service ];then
+    if systemctl stop sing-box && systemctl disable sing-box ;then
+      echo -e "INFO: Stoped and disabled sing-box.service"
+    else
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Stop and disable sing-box.service"
+      exit 1
+    fi
   fi
 
   NEED_REMOVE+=(
@@ -439,28 +499,48 @@ main() {
   check_root
   identify_the_operating_system_and_architecture
   
-  [[ $action == uninstall ]] && uninstall && exit 0
+  [[ $action == uninstall ]] && uninstall
 
   if [[ $type == go ]];then
     [[ -z $go_type ]] && go_type=default
-    go_install
+    go_install &
+    PID=$!
   else
-    curl_install
+    curl_install &
+    PID=$!
   fi
 
-  [[ $win == false ]] && [[ -z $INSTALL_USER ]] && install_sysuser
-  [[ -z $INSTALL_USER ]] && INSTALL_USER=sing-box
-  INSTALL_GROUP=$(groups $INSTALL_USER|awk '{printf $1}')
-  [[ $win == false ]] && install_config
-  [[ $win == false ]] && install_service
-  [[ $win == false ]] && install_compiletion
+  if [[ $win == false ]];then
+    if [[ -z $INSTALL_USER ]];then
+      install_sysuser
+      INSTALL_USER=sing-box
+    else
+      if ! getent passwd $INSTALL_USER >/dev/null;then
+        echo -e "\033[1;31m\033[1mERROR:\033[0m No such a user $INSTALL_USER"
+        exit 1
+      fi
+    fi
+    INSTALL_GROUP=$(groups $INSTALL_USER | awk '{printf $1}')
+    install_config
+    install_service
+    install_compiletion
+  fi
+
+  wait $PID
+
+  RESTART=$(cat $RESTART_TEMP)
+  if [[ $RESTART == true ]];then
+    restart_sing-box
+  fi
+  rm -f $RESTART_TEMP
 
   exit 0
 }
 
 help() {
-  echo -e "Thanks \033[38;5;208m@chika0801\033[0m."
-  echo -e "usage: install.sh ACTION [OPTION]...
+  echo -e "\
+Thanks \033[38;5;208m@chika0801\033[0m.
+usage: install.sh ACTION [OPTION]...
 
 ACTION:
 install                   Install/Update sing-box
@@ -478,7 +558,7 @@ OPTION:
                               If it's not specified, the scrpit will use offcial default Tags by default.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
-    --user=[User]             Install sing-box in specified user, e.g, -u root'
+    --user=[User]             Install sing-box in specified user, e.g, --user=root
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
   remove:
     --purge                   Remove all the sing-box files, include logs, configs, etc
@@ -486,7 +566,6 @@ OPTION:
   exit 0
 }
 
-# Parse command line arguments
 for arg in "$@"; do
   case $arg in
     --purge)
