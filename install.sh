@@ -291,14 +291,42 @@ Try to use \"--type=go\" to install\
   fi
 }
 
-install_service() {
-  while [ -f /etc/systemd/system/sing-box.service ];do
-    if ! cat /etc/systemd/system/sing-box.service | grep "User=$INSTALL_USER">/dev/null;then
-      break
+service_control() {
+  restart(){
+    if systemctl is-active --quiet sing-box.service; then
+      echo "INFO: sing-box.service is running, restarting it"
+      if ! systemctl restart sing-box.service;then
+        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart sing-box\nExiting."
+        exit 1
+      fi
+    else
+      echo "INFO: sing-box.service not running."
     fi
-    return 0
-  done
-  cat <<EOF > /etc/systemd/system/sing-box.service
+    services=$(systemctl list-units --full --all | grep 'sing-box@.*\.service' | grep running | awk '{print $1}')
+    for service in $services;do
+      echo "INFO: $service.service is running, restarting it"
+      systemctl restart $service || ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart $service\nExiting." && exit 1 )
+    done
+  }
+  start(){
+    if systemctl start sing-box.service;then
+      echo "INFO: Started sing-box.service."
+    else
+      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to start sing-box\nExiting."
+      exit 1
+    fi
+  }
+  ([[ $1 == start ]] && start )||([[ $1 == restart ]] && restart )
+}
+
+install_service() {
+  [ -f /etc/systemd/system/sing-box.service ] && local WAS_INSTALLED=true
+  if [[ $WAS_INSTALLED == true ]];then
+    local Old1=$(cat /etc/systemd/system/sing-box.service)
+    local Old2=$(cat /etc/systemd/system/sing-box.service)
+  fi
+  ( cat <<EOF > /etc/systemd/system/sing-box.service && echo -e "Installed \"/etc/systemd/system/sing-box.service\"" ) || \
+  ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service\"" && exit 1 )
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -318,8 +346,8 @@ LimitNOFILE=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
-  echo -e "Installed \"/etc/systemd/system/sing-box.service\""
-  cat <<EOF > /etc/systemd/system/sing-box@.service
+  (cat <<EOF > /etc/systemd/system/sing-box@.service && echo -e "Installed \"/etc/systemd/system/sing-box@.service\"" ) || \
+  ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service\"" && exit 1 )
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -339,16 +367,18 @@ LimitNOFILE=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
-  echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
   systemctl daemon-reload
-: '------------------------'
+  if [[ "$Old1" == "$(cat /etc/systemd/system/sing-box.service)" ]] || [[ "$Old2" == "$(cat /etc/systemd/system/sing-box@.service)" ]];then
+    service_control restart
+  fi
   wait $PID
-: '------------------------'
-  if systemctl enable sing-box && systemctl start sing-box;then
-    echo "INFO: Enabled and started sing-box.service"
+  [[ $WAS_INSTALLED == true ]] && return 0
+  if systemctl enable sing-box ;then
+    echo "INFO: Enabled sing-box.service"
+    service_control start
     echo -n 'false' > $RESTART_TEMP
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable and start sing-box.service"
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable sing-box.service"
     exit 1
   fi
 }
@@ -425,23 +455,6 @@ install_compiletion() {
         exit 1
     fi
   fi
-}
-
-restart_sing-box() {
-  if systemctl is-active --quiet sing-box.service; then
-    echo "INFO: sing-box.service is running, restarting it"
-    if ! systemctl restart sing-box.service;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart sing-box\nExiting."
-      exit 1
-    fi
-  else
-    echo "INFO: sing-box.service not running."
-  fi
-  services=$(systemctl list-units --full --all | grep 'sing-box@.*\.service' | grep running | awk '{print $1}')
-  for service in $services;do
-    echo "INFO: $service.service is running, restarting it"
-    systemctl restart $service || ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart $service\nExiting." && exit 1 )
-  done
 }
 
 uninstall() {
@@ -530,7 +543,7 @@ main() {
 
   RESTART=$(cat $RESTART_TEMP)
   if [[ $RESTART == true ]];then
-    restart_sing-box
+    service_control restart
   fi
   rm -f $RESTART_TEMP
 
