@@ -316,17 +316,12 @@ service_control() {
       exit 1
     fi
   }
-  ([[ $1 == start ]] && start )||([[ $1 == restart ]] && restart )
+  $1
 }
 
-install_service() {
-  [ -f /etc/systemd/system/sing-box.service ] && local WAS_INSTALLED=true
-  if [[ $WAS_INSTALLED == true ]];then
-    local Old1=$(cat /etc/systemd/system/sing-box.service)
-    local Old2=$(cat /etc/systemd/system/sing-box.service)
-  fi
-  ( cat <<EOF > /etc/systemd/system/sing-box.service && echo -e "Installed \"/etc/systemd/system/sing-box.service\"" ) || \
-  ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service\"" && exit 1 )
+service_file() {
+  sing-box(){
+    cat <<EOF
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -346,8 +341,9 @@ LimitNOFILE=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
-  (cat <<EOF > /etc/systemd/system/sing-box@.service && echo -e "Installed \"/etc/systemd/system/sing-box@.service\"" ) || \
-  ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service\"" && exit 1 )
+  }
+  sing-box@(){
+    cat <<EOF
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -367,12 +363,86 @@ LimitNOFILE=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
-  systemctl daemon-reload
-  if [[ "$Old1" == "$(cat /etc/systemd/system/sing-box.service)" ]] || [[ "$Old2" == "$(cat /etc/systemd/system/sing-box@.service)" ]];then
-    service_control restart
+  }
+  sing-box-donot_touch(){
+    cat <<EOF
+# In case you have a good reason to do so, duplicate this file in the same directory and make your customizes there.
+# Or all changes you made will be lost!  # Refer: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/config.json
+EOF
+  }
+  sing-box@-donot_touch(){
+    cat <<EOF
+# In case you have a good reason to do so, duplicate this file in the same directory and make your customizes there.
+# Or all changes you made will be lost!  # Refer: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
+EOF
+  }
+  $1
+}
+install_service() {
+  if [ -f /etc/systemd/system/sing-box.service ];then
+    WAS_INSTALLED=true
+    if [[ "$(service_file sing-box)" == "$(cat /etc/systemd/system/sing-box.service)" ]] && \
+       [[ "$(service_file sing-box@)" == "$(cat /etc/systemd/system/sing-box@.service)" ]] && \
+       [[ "$(service_file sing-box-donot_touch)" == "$(cat /etc/systemd/system/sing-box.service.d/10-donot_touch.conf)" ]] && \
+       [[ "$(service_file sing-box@-donot_touch)" == "$(cat /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf)" ]];then
+      return 0
+    fi
   fi
+
+  if service_file sing-box > /etc/systemd/system/sing-box.service ;then
+    echo -e "Installed \"/etc/systemd/system/sing-box.service\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service\""
+    exit 1
+  fi
+  if mkdir -p /etc/systemd/system/sing-box.service.d/;then
+    echo -e "Installed \"/etc/systemd/system/sing-box.service.d/\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service.d/\""
+    exit 1
+  fi
+  if service_file sing-box-donot_touch > /etc/systemd/system/sing-box.service.d/10-donot_touch.conf ;then
+    echo -e "Installed \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
+    exit 1
+  fi
+
+  if service_file sing-box@ > /etc/systemd/system/sing-box@.service;then
+    echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service\""
+    exit 1
+  fi
+  if mkdir -p /etc/systemd/system/sing-box@.service.d/;then
+    echo -e "Installed \"/etc/systemd/system/sing-box@.service.d/\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service.d/\""
+    exit 1
+  fi
+  if service_file sing-box@-donot_touch > /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf ;then
+    echo -e "Installed \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
+  else
+    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
+    exit 1
+  fi
+  
+  systemctl daemon-reload
+
   wait $PID
-  [[ $WAS_INSTALLED == true ]] && return 0
+
+  if [[ $WAS_INSTALLED == true ]];then
+    service_control restart
+    echo -n 'false' > $RESTART_TEMP
+    return 0
+  fi
+
   if systemctl enable sing-box ;then
     echo "INFO: Enabled sing-box.service"
     service_control start
@@ -546,6 +616,12 @@ main() {
     service_control restart
   fi
   rm -f $RESTART_TEMP
+
+  echo -e "\e[93mWARN\e[0m: Now this script is using systemd's \"Drop-In file\",
+\e[93mWARN\e[0m: DO NOT override any systemd service file, 
+\e[93mWARN\e[0m: YOU MUST put your custom systemd service config in to the Drop-In file folder
+\e[93mWARN\e[0m: \"/etc/systemd/system/sing-box.service.d\" and \"/etc/systemd/system/sing-box@.service.d\"
+\e[93mWARN\e[0m: You can read \"10-donot_touch.conf\" in the folder above for more information."
 
   exit 0
 }
