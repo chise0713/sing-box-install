@@ -8,15 +8,21 @@ Upstream URL:
 [sing-box](https://github.com/SagerNet/sing-box/) 
 
 ```
-Installed: /etc/systemd/system/sing-box.service
-Installed: /etc/systemd/system/sing-box@.service
-
 Installed: /usr/local/bin/sing-box
 ```
-```
-Will be Install after sing-box run:
-/usr/local/share/sing-box/geoip.db
-/usr/local/share/sing-box/geosite.db
+```bash
+...
+# Working Directory
+WorkingDirectory=/usr/local/share/sing-box
+##
+...
+# /etc/systemd/system/sing-box.service
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/config.json
+##
+# /etc/systemd/system/sing-box@.service
+ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
+##
+...
 ```
 
 ## Basic Usage

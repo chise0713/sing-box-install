@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 set -e
+ERROR="\e[1;31m"
+WARN="\e[93m"
+END="\e[0m"
 
 action=
 tag=
@@ -56,12 +59,12 @@ identify_the_operating_system_and_architecture() {
         MACHINE='s390x'
         ;;
       *)
-        echo "error: The architecture is not supported."
+        echo "${ERROR}ERROR:${END} The architecture is not supported."
         exit 1
         ;;
     esac
     if [[ ! -f '/etc/os-release' ]]; then
-      echo "error: Don't use outdated Linux distributions."
+      echo "${ERROR}ERROR:${END} Don't use outdated Linux distributions."
       exit 1
     fi
     # Do not combine this judgment condition with the following judgment condition.
@@ -71,7 +74,7 @@ identify_the_operating_system_and_architecture() {
     elif [[ -d /run/systemd/system ]] || grep -q systemd <(ls -l /sbin/init); then
       true
     else
-      echo "error: Only Linux distributions using systemd are supported."
+      echo "${ERROR}ERROR:${END} Only Linux distributions using systemd are supported."
       exit 1
     fi
     if [[ "$(type -P apt)" ]]; then
@@ -99,11 +102,11 @@ identify_the_operating_system_and_architecture() {
       PACKAGE_MANAGEMENT_REMOVE='emerge -Cv'
       package_provide_tput='ncurses'
     else
-      echo "error: The script does not support the package manager in this operating system."
+      echo "${ERROR}ERROR:${END} The script does not support the package manager in this operating system."
       exit 1
     fi
   else
-    echo "error: This operating system is not supported."
+    echo "${ERROR}ERROR:${END} This operating system is not supported."
     exit 1
   fi
 }
@@ -111,25 +114,25 @@ identify_the_operating_system_and_architecture() {
 install_software() {
   package_name="$1"
   file_to_detect="$2"
-  type -P "$file_to_detect" > /dev/null 2>&1 && return
-  if ${PACKAGE_MANAGEMENT_INSTALL} "$package_name" >/dev/null 2>&1; then
-    echo "info: $package_name is installed."
+  type -P "$file_to_detect" > /dev/null 2>&1 && return || echo -e "${WARN}WARN:${END} $package_name not installed, installing." && sleep 1
+  if ${PACKAGE_MANAGEMENT_INSTALL} "$package_name"; then
+    echo "INFO: $package_name is installed."
   else
-    echo "error: Installation of $package_name failed, please check your network."
+    echo "${ERROR}ERROR:${END} Installation of $package_name failed, please check your network."
     exit 1
   fi
 }
 
 check_root() {
   if [[ $EUID -ne 0 ]]; then
-    echo -e "\033[1;31m\033[1mERROR:\033[0m You have to use root to run this script"
+    echo -e "${ERROR}ERROR:${END} You have to use root to run this script"
     exit 1
   fi
 }
 
 curl() {
   if ! $(type -P curl) -# -L -q --retry 5 --retry-delay 5 --retry-max-time 60 "$@";then
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Curl Failed, check your network"
+    echo -e "${ERROR}ERROR:${END} Curl Failed, check your network"
     exit 1
   fi
 }
@@ -137,32 +140,32 @@ curl() {
 install_building_components() {
   if [[ $PACKAGE_MANAGEMENT_INSTALL == 'apt -y --no-install-recommends install' ]]; then
     if ! dpkg -l | awk '{print $2"\t","Version="$3,"ARCH="$4}' | grep build-essential ;then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} build-essential
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'dnf -y install' ]]; then
     if ! dnf list installed "Development Tools";then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} "Development Tools"
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'yum -y install' ]]; then
     if ! yum list installed "Development Tools";then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} "Development Tools"
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'zypper install -y --no-recommends' ]]; then
     if ! zypper se --installed-only gcc;then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} gcc
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'pacman -Syu --noconfirm' ]]; then
     if ! pacman -Q base-devel;then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} base-devel
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'emerge -qv' ]]; then
     if ! emerge -p sys-devel/base-system;then
-      echo -e "\e[93mWARN\e[0m: Building components not found, Installing."
+      echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} sys-devel/base-system
     fi
   fi
@@ -192,12 +195,12 @@ go_install() {
   fi
   
   if echo $tag |grep -oP with_lwip >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Tag with_lwip \e[1mMUST HAVE environment variable CGO_ENABLED=1\e[0m\nExiting."
+    echo -e "${ERROR}ERROR:${END} Tag with_lwip \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
 
   if echo $tag |grep -oP with_embedded_tor >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Tag with_embedded_tor \e[1mMUST HAVE environment variable CGO_ENABLED=1\e[0m\nExiting."
+    echo -e "${ERROR}ERROR:${END} Tag with_embedded_tor \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
 
@@ -220,10 +223,10 @@ Tags: $tag\
 
   if [[ $win == false ]];then
     if install -m 755 /root/go/bin/sing-box /usr/local/bin/sing-box;then
-      echo -e "Installed \"/usr/local/bin/sing-box\""
+      echo -e "Installed: \"/usr/local/bin/sing-box\""
       echo -n 'true' > $RESTART_TEMP
     else
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/bin/sing-box\""
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/bin/sing-box\""
       exit 1
     fi
   elif [[ $win == true ]];then
@@ -283,10 +286,10 @@ Try to use \"--type=go\" to install\
 
   tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
   if install -m 755 /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box;then
-    echo -e "Installed \"/usr/local/bin/sing-box\""
+    echo -e "Installed: \"/usr/local/bin/sing-box\""
     echo -n 'true' > $RESTART_TEMP
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/bin/sing-box\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/bin/sing-box\""
     exit 1
   fi
 }
@@ -296,7 +299,7 @@ service_control() {
     if systemctl is-active --quiet sing-box.service; then
       echo "INFO: sing-box.service is running, restarting it"
       if ! systemctl restart sing-box.service;then
-        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart sing-box\nExiting."
+        echo -e "${ERROR}ERROR:${END} Failed to restart sing-box\nExiting."
         exit 1
       fi
     else
@@ -305,14 +308,14 @@ service_control() {
     services=$(systemctl list-units --full --all | grep 'sing-box@.*\.service' | grep running | awk '{print $1}')
     for service in $services;do
       echo "INFO: $service.service is running, restarting it"
-      systemctl restart $service || ( echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to restart $service\nExiting." && exit 1 )
+      systemctl restart $service || ( echo -e "${ERROR}ERROR:${END} Failed to restart $service\nExiting." && exit 1 )
     done
   }
   start(){
     if systemctl start sing-box.service;then
       echo "INFO: Started sing-box.service."
     else
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to start sing-box\nExiting."
+      echo -e "${ERROR}ERROR:${END} Failed to start sing-box\nExiting."
       exit 1
     fi
   }
@@ -384,6 +387,7 @@ EOF
   }
   $1
 }
+
 install_service() {
   if [ -f /etc/systemd/system/sing-box.service ];then
     WAS_INSTALLED=true
@@ -396,40 +400,40 @@ install_service() {
   fi
 
   if service_file sing-box > /etc/systemd/system/sing-box.service ;then
-    echo -e "Installed \"/etc/systemd/system/sing-box.service\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box.service\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service\""
     exit 1
   fi
   if mkdir -p /etc/systemd/system/sing-box.service.d/;then
-    echo -e "Installed \"/etc/systemd/system/sing-box.service.d/\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box.service.d/\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service.d/\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service.d/\""
     exit 1
   fi
   if service_file sing-box-donot_touch > /etc/systemd/system/sing-box.service.d/10-donot_touch.conf ;then
-    echo -e "Installed \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
     exit 1
   fi
 
   if service_file sing-box@ > /etc/systemd/system/sing-box@.service;then
-    echo -e "Installed \"/etc/systemd/system/sing-box@.service\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box@.service\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service\""
     exit 1
   fi
   if mkdir -p /etc/systemd/system/sing-box@.service.d/;then
-    echo -e "Installed \"/etc/systemd/system/sing-box@.service.d/\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box@.service.d/\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service.d/\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service.d/\""
     exit 1
   fi
   if service_file sing-box@-donot_touch > /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf ;then
-    echo -e "Installed \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
+    echo -e "Installed: \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
     exit 1
   fi
   
@@ -437,18 +441,14 @@ install_service() {
 
   wait $PID
 
-  if [[ $WAS_INSTALLED == true ]];then
-    service_control restart
-    echo -n 'false' > $RESTART_TEMP
-    return 0
-  fi
+  [[ $WAS_INSTALLED == true ]] && return 0
 
   if systemctl enable sing-box ;then
     echo "INFO: Enabled sing-box.service"
     service_control start
     echo -n 'false' > $RESTART_TEMP
   else
-    echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to enable sing-box.service"
+    echo -e "${ERROR}ERROR:${END} Failed to enable sing-box.service"
     exit 1
   fi
 }
@@ -456,16 +456,16 @@ install_service() {
 install_config() {
   if [ ! -d /usr/local/etc/sing-box ];then
     if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/etc/sing-box;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box\""
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box\""
       exit 1
     else
-      echo "Installed \"/usr/local/etc/sing-box\""
+      echo "Installed: \"/usr/local/etc/sing-box\""
     fi
     if ! install -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /dev/null /usr/local/etc/sing-box/config.json;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/etc/sing-box/config.json\""
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box/config.json\""
       exit 1
     else
-      echo -e "Installed \"/usr/local/etc/sing-box/config.json\""
+      echo -e "Installed: \"/usr/local/etc/sing-box/config.json\""
       echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
     fi
   elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
@@ -473,25 +473,24 @@ install_config() {
   fi
   if [ ! -d /usr/local/share/sing-box ];then
     if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/share/sing-box;then
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/local/share/sing-box\""
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/share/sing-box\""
       exit 1
     else
-      echo -e "Installed \"/usr/local/share/sing-box\""
+      echo -e "Installed: \"/usr/local/share/sing-box\""
     fi
   elif ! ls /usr/local/share/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
     chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/share/sing-box
   fi
 }
 
-install_sysuser() {
-  if [ -f /usr/lib/sysusers.d/sing-box.conf ];then
-    return 0
+install_user() {
+  if ! getent passwd $INSTALL_USER>/dev/null;then
+    useradd -c "sing-box service" -d /usr/local/share/sing-box -s /bin/nologin $INSTALL_USER
+    SING_BOX_UID=$(id $INSTALL_USER -u) && SING_BOX_GID=$(id $INSTALL_USER -g)
+    echo -e "Creating group '$INSTALL_USER' with GID $SING_BOX_GID."
+    echo -e "Creating user '$INSTALL_USER' (sing-box service) with UID $SING_BOX_UID and GID $SING_BOX_GID."
+    INSTALL_GROUP=$SING_BOX_GID
   fi
-  cat <<EOF > /usr/lib/sysusers.d/sing-box.conf
-u sing-box - "sing-box service" /usr/local/share/sing-box -
-EOF
-  echo -e "Installed \"/usr/lib/sysusers.d/sing-box.conf\""
-  systemd-sysusers /usr/lib/sysusers.d/sing-box.conf
 }
 
 install_compiletion() {
@@ -499,9 +498,9 @@ install_compiletion() {
     if \
       sing-box completion bash |\
         install -Dm644 /dev/stdin "/usr/share/bash-completion/completions/sing-box";then
-      echo -e "Installed \"/usr/share/bash-completion/completions/sing-box\""
+      echo -e "Installed: \"/usr/share/bash-completion/completions/sing-box\""
     else
-        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/bash-completion/completions/sing-box\""
+        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/bash-completion/completions/sing-box\""
         exit 1
     fi
   fi
@@ -509,9 +508,9 @@ install_compiletion() {
     if \
       sing-box completion fish |\
         install -Dm644 /dev/stdin "/usr/share/fish/vendor_completions.d/sing-box.fish";then
-      echo -e "Installed \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
+      echo -e "Installed: \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
     else
-        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
+        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
         exit 1
     fi
   fi
@@ -519,9 +518,9 @@ install_compiletion() {
     if \
       sing-box completion zsh |\
         install -Dm644 /dev/stdin "/usr/share/zsh/site-functions/_sing-box";then
-      echo -e "Installed \"/usr/share/zsh/site-functions/_sing-box\""
+      echo -e "Installed: \"/usr/share/zsh/site-functions/_sing-box\""
     else
-        echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Install \"/usr/share/zsh/site-functions/_sing-box\""
+        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/zsh/site-functions/_sing-box\""
         exit 1
     fi
   fi
@@ -536,7 +535,7 @@ uninstall() {
     if systemctl stop sing-box && systemctl disable sing-box ;then
       echo -e "INFO: Stoped and disabled sing-box.service"
     else
-      echo -e "\033[1;31m\033[1mERROR:\033[0m Failed to Stop and disable sing-box.service"
+      echo -e "${ERROR}ERROR:${END} Failed to Stop and disable sing-box.service"
       exit 1
     fi
   fi
@@ -557,7 +556,7 @@ uninstall() {
 
   for file in "${NEED_REMOVE[@]}"; do
       if [[ -d $file ]] || [[ -f $file ]];then
-        rm -rf $file || (echo -e "\033[1;31m\033[1mERROR:\033[0m Failed remove $file" && exit 1)
+        rm -rf $file || (echo -e "${ERROR}ERROR:${END} Failed remove $file" && exit 1)
         if echo $file | grep -E ".*/$">/dev/null ;then
           echo "Removed directory \"$file\""
         else
@@ -595,15 +594,15 @@ main() {
 
   if [[ $win == false ]];then
     if [[ -z $INSTALL_USER ]];then
-      install_sysuser
       INSTALL_USER=sing-box
+      install_user
     else
       if ! getent passwd $INSTALL_USER >/dev/null;then
-        echo -e "\033[1;31m\033[1mERROR:\033[0m No such a user $INSTALL_USER"
+        echo -e "${ERROR}ERROR:${END} No such a user $INSTALL_USER"
         exit 1
       fi
     fi
-    INSTALL_GROUP=$(groups $INSTALL_USER | awk '{printf $1}')
+    [[ -z $INSTALL_GROUP ]] || INSTALL_GROUP=$(groups $INSTALL_USER | awk '{printf $1}')
     install_config
     install_service
     install_compiletion
@@ -617,18 +616,18 @@ main() {
   fi
   rm -f $RESTART_TEMP
 
-  echo -e "\e[93mWARN\e[0m: Now this script is using systemd's \"Drop-In file\",
-\e[93mWARN\e[0m: DO NOT override any systemd service file, 
-\e[93mWARN\e[0m: YOU MUST put your custom systemd service config in to the Drop-In file folder
-\e[93mWARN\e[0m: \"/etc/systemd/system/sing-box.service.d\" and \"/etc/systemd/system/sing-box@.service.d\"
-\e[93mWARN\e[0m: You can read \"10-donot_touch.conf\" in the folder above for more information."
+  echo -e "${WARN}WARN:${END} Now this script is using systemd's \"Drop-In file\",
+${WARN}WARN:${END} DO NOT override any systemd service file, 
+${WARN}WARN:${END} YOU MUST put your custom systemd service config in to the Drop-In file folder
+${WARN}WARN:${END} \"/etc/systemd/system/sing-box.service.d\" and \"/etc/systemd/system/sing-box@.service.d\"
+${WARN}WARN:${END} You can read \"10-donot_touch.conf\" in the folder above for more information."
 
   exit 0
 }
 
 help() {
   echo -e "\
-Thanks \033[38;5;208m@chika0801\033[0m.
+Thanks \033[38;5;208m@chika0801${END}.
 usage: install.sh ACTION [OPTION]...
 
 ACTION:
