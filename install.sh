@@ -4,109 +4,108 @@ ERROR="\e[1;31m"
 WARN="\e[93m"
 END="\e[0m"
 
-action=
-tag=
-type=
-go_type=
-remove_type=
-beta=false
-win=false
+ACTION=
+TAGS=
+TYPE=
+GO_TYPE=
+REMOVE_TYPE=
+BETA=false
+WIN=false
 PURGE=false
 CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
 
 identify_the_operating_system_and_architecture() {
-  if [[ "$(uname)" == 'Linux' ]]; then
-    case "$(uname -m)" in
-      'i386' | 'i686')
-        MACHINE='386'
-        ;;
-      'amd64' | 'x86_64')
-        MACHINE='amd64'
-        ;;
-      'armv5tel')
-        MACHINE='arm'
-        ;;
-      'armv6l')
-        MACHINE='arm'
-        ;;
-      'armv7' | 'armv7l')
-        MACHINE='arm'
-        ;;
-      'armv8' | 'aarch64')
-        MACHINE='arm64'
-        ;;
-      'mips')
-        MACHINE='mips'
-        ;;
-      'mipsle')
-        MACHINE='mipsle'
-        ;;
-      'mips64')
-        MACHINE='mips64'
-        lscpu | grep -q "Little Endian" && MACHINE='mips64le'
-        ;;
-      'mips64le')
-        MACHINE='mips64le'
-        ;;
-      'ppc64')
-        MACHINE='ppc64'
-        ;;
-      'ppc64le')
-        MACHINE='ppc64le'
-        ;;
-      's390x')
-        MACHINE='s390x'
-        ;;
-      *)
-        echo "${ERROR}ERROR:${END} The architecture is not supported."
-        exit 1
-        ;;
-    esac
-    if [[ ! -f '/etc/os-release' ]]; then
-      echo "${ERROR}ERROR:${END} Don't use outdated Linux distributions."
-      exit 1
-    fi
-    # Do not combine this judgment condition with the following judgment condition.
-    ## Be aware of Linux distribution like Gentoo, which kernel supports switch between Systemd and OpenRC.
-    if [[ -f /.dockerenv ]] || grep -q 'docker\|lxc' /proc/1/cgroup && [[ "$(type -P systemctl)" ]]; then
-      true
-    elif [[ -d /run/systemd/system ]] || grep -q systemd <(ls -l /sbin/init); then
-      true
-    else
-      echo "${ERROR}ERROR:${END} Only Linux distributions using systemd are supported."
-      exit 1
-    fi
-    if [[ "$(type -P apt)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='apt -y --no-install-recommends install'
-      PACKAGE_MANAGEMENT_REMOVE='apt purge'
-      package_provide_tput='ncurses-bin'
-    elif [[ "$(type -P dnf)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='dnf -y install'
-      PACKAGE_MANAGEMENT_REMOVE='dnf remove'
-      package_provide_tput='ncurses'
-    elif [[ "$(type -P yum)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='yum -y install'
-      PACKAGE_MANAGEMENT_REMOVE='yum remove'
-      package_provide_tput='ncurses'
-    elif [[ "$(type -P zypper)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='zypper install -y --no-recommends'
-      PACKAGE_MANAGEMENT_REMOVE='zypper remove'
-      package_provide_tput='ncurses-utils'
-    elif [[ "$(type -P pacman)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='pacman -Syu --noconfirm'
-      PACKAGE_MANAGEMENT_REMOVE='pacman -Rsn'
-      package_provide_tput='ncurses'
-     elif [[ "$(type -P emerge)" ]]; then
-      PACKAGE_MANAGEMENT_INSTALL='emerge -qv'
-      PACKAGE_MANAGEMENT_REMOVE='emerge -Cv'
-      package_provide_tput='ncurses'
-    else
-      echo "${ERROR}ERROR:${END} The script does not support the package manager in this operating system."
-      exit 1
-    fi
-  else
+  if ! [[ "$(uname)" == 'Linux' ]]; then
     echo "${ERROR}ERROR:${END} This operating system is not supported."
+    exit 1
+  fi
+  case "$(uname -m)" in
+    'i386' | 'i686')
+      MACHINE='386'
+      ;;
+    'amd64' | 'x86_64')
+      MACHINE='amd64'
+      ;;
+    'armv5tel')
+      MACHINE='arm'
+      ;;
+    'armv6l')
+      MACHINE='arm'
+      ;;
+    'armv7' | 'armv7l')
+      MACHINE='arm'
+      ;;
+    'armv8' | 'aarch64')
+      MACHINE='arm64'
+      ;;
+    'mips')
+      MACHINE='mips'
+      ;;
+    'mipsle')
+      MACHINE='mipsle'
+      ;;
+    'mips64')
+      MACHINE='mips64'
+      lscpu | grep -q "Little Endian" && MACHINE='mips64le'
+      ;;
+    'mips64le')
+      MACHINE='mips64le'
+      ;;
+    'ppc64')
+      MACHINE='ppc64'
+      ;;
+    'ppc64le')
+      MACHINE='ppc64le'
+      ;;
+    's390x')
+      MACHINE='s390x'
+      ;;
+    *)
+      echo "${ERROR}ERROR:${END} The architecture is not supported."
+      exit 1
+      ;;
+  esac
+  if [[ ! -f '/etc/os-release' ]]; then
+    echo "${ERROR}ERROR:${END} Don't use outdated Linux distributions."
+    exit 1
+  fi
+  # Do not combine this judgment condition with the following judgment condition.
+  ## Be aware of Linux distribution like Gentoo, which kernel supports switch between Systemd and OpenRC.
+  if [[ -f /.dockerenv ]] || grep -q 'docker\|lxc' /proc/1/cgroup && [[ "$(type -P systemctl)" ]]; then
+    true
+  elif [[ -d /run/systemd/system ]] || grep -q systemd <(ls -l /usr/bin/init); then
+    true
+  else
+    echo "${ERROR}ERROR:${END} Only Linux distributions using systemd are supported."
+    exit 1
+  fi
+  if [[ "$(type -P apt)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='apt -y --no-install-recommends install'
+    PACKAGE_MANAGEMENT_REMOVE='apt purge'
+    package_provide_tput='ncurses-bin'
+  elif [[ "$(type -P dnf)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='dnf -y install'
+    PACKAGE_MANAGEMENT_REMOVE='dnf remove'
+    package_provide_tput='ncurses'
+  elif [[ "$(type -P yum)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='yum -y install'
+    PACKAGE_MANAGEMENT_REMOVE='yum remove'
+    package_provide_tput='ncurses'
+  elif [[ "$(type -P zypper)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='zypper install -y --no-recommends'
+    PACKAGE_MANAGEMENT_REMOVE='zypper remove'
+    package_provide_tput='ncurses-utils'
+  elif [[ "$(type -P pacman)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='pacman -Syy --noconfirm'
+    PACKAGE_MANAGEMENT_REMOVE='pacman -Rsn'
+    package_provide_tput='ncurses'
+  elif [[ "$(type -P emerge)" ]]; then
+    PACKAGE_MANAGEMENT_INSTALL='emerge -qv'
+    PACKAGE_MANAGEMENT_REMOVE='emerge -Cv'
+    package_provide_tput='ncurses'
+  else
+    echo "${ERROR}ERROR:${END} The script does not support the package manager in this operating system."
     exit 1
   fi
 }
@@ -180,10 +179,10 @@ go_install() {
     echo "INFO: GO Found, PATH=$GO_PATH"
   fi
 
-  if [[ $win == true ]];then 
+  if [[ $WIN == true ]];then 
     export GOOS=windows
     export GOARCH=amd64 && export GOAMD64=v3
-  elif [[ $win == false ]];then
+  elif [[ $WIN == false ]];then
     export GOOS=linux
     [[ $MACHINE == amd64 ]] && export GOAMD64=v2
   fi
@@ -194,34 +193,34 @@ go_install() {
     export CGO_ENABLED=1
   fi
   
-  if echo $tag |grep -oP with_lwip >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+  if echo $TAGS |grep -oP with_lwip >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
     echo -e "${ERROR}ERROR:${END} Tag with_lwip \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
 
-  if echo $tag |grep -oP with_embedded_tor >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+  if echo $TAGS |grep -oP with_embedded_tor >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
     echo -e "${ERROR}ERROR:${END} Tag with_embedded_tor \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
 
-  if [[ $go_type == default ]];then
+  if [[ $GO_TYPE == default ]];then
     echo -e "\
 Using offcial default Tags: with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api.\
 "
-    tag="with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api"
-  elif [[ $go_type == custom ]]; then
+    TAGS="with_gvisor,with_quic,with_dhcp,with_wireguard,with_ech,with_utls,with_reality_server,with_clash_api"
+  elif [[ $GO_TYPE == custom ]]; then
     echo -e "\
 Using custom config:
-Tags: $tag\
+Tags: $TAGS\
 "
   fi
 
-  if ! GOARCH=$MACHINE go install -v -tags $tag github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
+  if ! GOARCH=$MACHINE go install -v -tags $TAGS github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
     echo -e "Go Install Failed.\nExiting."
     exit 1
   fi
 
-  if [[ $win == false ]];then
+  if [[ $WIN == false ]];then
     if install -m 755 /root/go/bin/sing-box /usr/local/bin/sing-box;then
       echo -e "Installed: \"/usr/local/bin/sing-box\""
       echo -n 'true' > $RESTART_TEMP
@@ -229,7 +228,7 @@ Tags: $tag\
       echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/bin/sing-box\""
       exit 1
     fi
-  elif [[ $win == true ]];then
+  elif [[ $WIN == true ]];then
     cp -rf /root/go/bin/windows_amd64/sing-box.exe /root/sing-box.exe
     echo -e "Installed: /root/go/bin/sing-box.exe\nInstalled: /root/sing-box.exe"
     exit 0
@@ -250,10 +249,10 @@ Try to use \"--type=go\" to install\
   fi
 
   if [[ -z $SING_VERSION ]];then
-    if [[ $beta == false ]];then
+    if [[ $BETA == false ]];then
       SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
       echo "Newest version found: $SING_VERSION"
-    elif [[ $beta == true ]];then
+    elif [[ $BETA == true ]];then
       SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+.*-linux-$CURL_MACHINE"| sed "s/-linux-$CURL_MACHINE$/-zzzzz-linux-$CURL_MACHINE/" | sort -Vru | sed "s/-zzzzz-linux-$CURL_MACHINE$/-linux-$CURL_MACHINE/" | head -n 1)
       echo "Newest version found: $SING_VERSION"
       CURL_TAG=$(echo $SING_VERSION | (grep -oP "\d+\.\d+\.\d+.*\.\d+" || grep -oP "\d+\.\d+\.\d+"))
@@ -273,7 +272,7 @@ Try to use \"--type=go\" to install\
   if [ -f /usr/local/bin/sing-box ];then
     CURRENT_SING_VERSION=$(sing-box version | (grep -oP "\d+\.\d+\.\d+.*"|| grep -oP "\d+\.\d+\.\d+") | head -1)
     if echo "$SING_VERSION" | grep "sing-box-$CURRENT_SING_VERSION-linux-$CURL_MACHINE">/dev/null;then
-      echo "Your sing-box is up to date"
+      echo "INFO: Your sing-box is up to date"
       return 0
     fi
   fi
@@ -325,6 +324,8 @@ service_control() {
 service_file() {
   sing-box(){
     cat <<EOF
+# In case you have a good reason to do so, goto the sing-box.service.d directory and make your customizes there.
+# Or all changes you made will be lost!  # Refer: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -332,7 +333,7 @@ After=network.target nss-lookup.target
 
 [Service]
 User=$INSTALL_USER
-WorkingDirectory=/usr/local/share/sing-box
+WorkingDirectory=/var/lib/sing-box
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/config.json
@@ -347,6 +348,8 @@ EOF
   }
   sing-box@(){
     cat <<EOF
+# In case you have a good reason to do so, goto the sing-box@.service.d directory and make your customizes there.
+# Or all changes you made will be lost!  # Refer: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -354,7 +357,7 @@ After=network.target nss-lookup.target
 
 [Service]
 User=$INSTALL_USER
-WorkingDirectory=/usr/local/share/sing-box
+WorkingDirectory=/var/lib/sing-box
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
@@ -439,9 +442,9 @@ install_service() {
   
   systemctl daemon-reload
 
-  wait $PID
-
   [[ $WAS_INSTALLED == true ]] && return 0
+
+  wait $PID
 
   if systemctl enable sing-box ;then
     echo "INFO: Enabled sing-box.service"
@@ -455,11 +458,11 @@ install_service() {
 
 install_config() {
   if [ ! -d /usr/local/etc/sing-box ];then
-    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/etc/sing-box;then
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box\""
+    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/etc/sing-box/;then
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box/\""
       exit 1
     else
-      echo "Installed: \"/usr/local/etc/sing-box\""
+      echo "Installed: \"/usr/local/etc/sing-box/\""
     fi
     if ! install -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /dev/null /usr/local/etc/sing-box/config.json;then
       echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box/config.json\""
@@ -469,23 +472,32 @@ install_config() {
       echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
     fi
   elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box
+    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
   fi
-  if [ ! -d /usr/local/share/sing-box ];then
-    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/share/sing-box;then
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/share/sing-box\""
+  if [ ! -d /var/lib/sing-box ];then
+    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /var/lib/sing-box/;then
+      echo -e "${ERROR}ERROR:${END} Failed to Install \"/var/lib/sing-box/\""
       exit 1
     else
-      echo -e "Installed: \"/usr/local/share/sing-box\""
+      echo -e "Installed: \"/var/lib/sing-box/\""
     fi
-  elif ! ls /usr/local/share/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/share/sing-box
+  fi
+  if [ -d /usr/local/share/sing-box ];then
+    if mv /usr/local/share/sing-box /var/lib/sing-box -T;then
+      echo -e "${WARN}WARN:${END} Migrated: \"/usr/local/share/sing-box\" to \"/var/lib/sing-box\""
+    else
+      echo -e "${ERROR}ERROR:${END} Failed to migrate \"/usr/local/share/sing-box\" to \"/var/lib/sing-box\""
+      exit 1
+    fi
+  fi
+  if ! ls /var/lib/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
+    chown -R $INSTALL_USER:$INSTALL_GROUP /var/lib/sing-box
   fi
 }
 
 install_user() {
   if ! getent passwd $INSTALL_USER>/dev/null;then
-    useradd -c "sing-box service" -d /usr/local/share/sing-box -s /bin/nologin $INSTALL_USER
+    useradd -c "sing-box service" -d /var/lib/sing-box -s /bin/nologin $INSTALL_USER
     SING_BOX_UID=$(id $INSTALL_USER -u) && SING_BOX_GID=$(id $INSTALL_USER -g)
     echo -e "Creating group '$INSTALL_USER' with GID $SING_BOX_GID."
     echo -e "Creating user '$INSTALL_USER' (sing-box service) with UID $SING_BOX_UID and GID $SING_BOX_GID."
@@ -528,7 +540,7 @@ install_compiletion() {
 
 uninstall() {
   if ! ([ -f /etc/systemd/system/sing-box.service ] || [ -f /usr/local/bin/sing-box ]) ;then
-    echo -e "sing-box not Installed.\nExiting."
+    echo -e "sing-box is not installed.\nExiting."
     exit 1
   fi
   if [ -f /etc/systemd/system/sing-box.service ];then
@@ -551,7 +563,7 @@ uninstall() {
   )
 
   if [[ $PURGE == true ]];then
-    NEED_REMOVE+=( '/usr/local/etc/sing-box/' '/usr/local/share/sing-box/' )
+    NEED_REMOVE+=( '/usr/local/etc/sing-box/' '/var/lib/sing-box/' '/usr/local/share/sing-box' )
   fi
 
   for file in "${NEED_REMOVE[@]}"; do
@@ -577,14 +589,66 @@ uninstall() {
   exit 0
 }
 
+judgment() {
+for arg in "$@"; do
+  case $arg in
+    --purge)
+      PURGE=true
+      ;;
+    --win)
+      WIN=true
+      TYPE="go"
+      ;;
+    --user=*)
+      INSTALL_USER="${arg#*=}"
+      ;;
+    --beta)
+      BETA=true
+      ;;
+    --go)
+      TYPE="go"
+      ;;
+    --cgo)
+      CGO_ENABLED=1
+      TYPE="go"
+      ;;
+    --tag=*)
+      TAGS="${arg#*=}"
+      GO_TYPE="custom"
+      TYPE="go"
+      ;;
+    --version=*)
+      SING_VERSION="${arg#*=}"
+      ;;
+    help)
+      help
+      ;;
+    remove)
+      ACTION="uninstall"
+      ;;
+    install)
+      ACTION="install"
+      ;;
+    *)
+      echo "Invalid argument: $arg"
+      exit 1
+      ;;
+  esac
+done
+}
+
 main() {
+  judgment "$@"
   check_root
   identify_the_operating_system_and_architecture
-  
-  [[ $action == uninstall ]] && uninstall
+  if [[ -z $ACTION ]];then
+    echo "No action specified."
+    help
+  fi
+  [[ $ACTION == uninstall ]] && uninstall
 
-  if [[ $type == go ]];then
-    [[ -z $go_type ]] && go_type=default
+  if [[ $TYPE == go ]];then
+    [[ -z $GO_TYPE ]] && GO_TYPE=default
     go_install &
     PID=$!
   else
@@ -592,7 +656,7 @@ main() {
     PID=$!
   fi
 
-  if [[ $win == false ]];then
+  if [[ $WIN == false ]];then
     if [[ -z $INSTALL_USER ]];then
       INSTALL_USER=sing-box
       install_user
@@ -602,7 +666,7 @@ main() {
         exit 1
       fi
     fi
-    [[ -z $INSTALL_GROUP ]] || INSTALL_GROUP=$(groups $INSTALL_USER | awk '{printf $1}')
+    [[ -z $INSTALL_GROUP ]] && INSTALL_GROUP=$(groups $INSTALL_USER | awk '{printf $1}')
     install_config
     install_service
     install_compiletion
@@ -616,19 +680,13 @@ main() {
   fi
   rm -f $RESTART_TEMP
 
-  echo -e "${WARN}WARN:${END} Now this script is using systemd's \"Drop-In file\",
-${WARN}WARN:${END} DO NOT override any systemd service file, 
-${WARN}WARN:${END} YOU MUST put your custom systemd service config in to the Drop-In file folder
-${WARN}WARN:${END} \"/etc/systemd/system/sing-box.service.d\" and \"/etc/systemd/system/sing-box@.service.d\"
-${WARN}WARN:${END} You can read \"10-donot_touch.conf\" in the folder above for more information."
-
   exit 0
 }
 
 help() {
   echo -e "\
 Thanks \033[38;5;208m@chika0801${END}.
-usage: install.sh ACTION [OPTION]...
+usage: install.sh [ACTION] [OPTION]...
 
 ACTION:
 install                   Install/Update sing-box
@@ -642,7 +700,7 @@ OPTION:
                               If it's not specified, the scrpit will install latest release version by default.
     --go                      If it's specified, the scrpit will use go to install sing-box. 
                               If it's not specified, the scrpit will use curl by default.
-    --tag=[Tags]              sing-box Install tag, if you specified it, the script will use go to install sing-box, and use your custom tags. 
+    --TAGS=[Tags]              sing-box Install TAGS, if you specified it, the script will use go to install sing-box, and use your custom tags. 
                               If it's not specified, the scrpit will use offcial default Tags by default.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
@@ -654,52 +712,4 @@ OPTION:
   exit 0
 }
 
-for arg in "$@"; do
-  case $arg in
-    --purge)
-      PURGE=true
-      ;;
-    --win)
-      win=true
-      type="go"
-      ;;
-    --user=*)
-      INSTALL_USER="${arg#*=}"
-      ;;
-    --beta)
-      beta=true
-      ;;
-    --go)
-      type="go"
-      ;;
-    --cgo)
-      CGO_ENABLED=1
-      type="go"
-      ;;
-    --tag=*)
-      tag="${arg#*=}"
-      go_type=custom
-      type="go"
-      ;;
-    --version=*)
-      SING_VERSION="${arg#*=}"
-      ;;
-    help)
-      help
-      ;;
-    remove)
-      action="uninstall"
-      ;;
-    install)
-      action="install"
-      ;;
-    *)
-      echo "Invalid argument: $arg"
-      exit 1
-      ;;
-  esac
-done
-
-([[ $action == install ]] || [[ $action == uninstall ]]) && main
-echo "No action specified."
-help
+main "$@"

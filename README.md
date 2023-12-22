@@ -10,10 +10,10 @@ Upstream URL:
 ```
 Installed: /usr/local/bin/sing-box
 ```
-```bash
+```ini
 ...
 # Working Directory
-WorkingDirectory=/usr/local/share/sing-box
+WorkingDirectory=/var/lib/sing-box
 ##
 ...
 # /etc/systemd/system/sing-box.service
