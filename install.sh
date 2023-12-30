@@ -15,6 +15,7 @@ PURGE=false
 CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
 BRANCH=
+PREFIX=
 
 identify_the_operating_system_and_architecture() {
   if ! [[ "$(uname)" == 'Linux' ]]; then
@@ -139,31 +140,37 @@ curl() {
 
 install_building_components() {
   if [[ $PACKAGE_MANAGEMENT_INSTALL == 'apt -y --no-install-recommends install' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"build-essential\" first." && exit 1
     if ! dpkg -l | awk '{print $2"\t","Version="$3,"ARCH="$4}' | grep build-essential ;then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} build-essential
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'dnf -y install' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"Development Tools\" first." && exit 1
     if ! dnf list installed "Development Tools";then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} "Development Tools"
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'yum -y install' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"Development Tools\" first." && exit 1
     if ! yum list installed "Development Tools";then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} "Development Tools"
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'zypper install -y --no-recommends' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"gcc\" first." && exit 1
     if ! zypper se --installed-only gcc;then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} gcc
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'pacman -Syy --noconfirm' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"base-devel\" first." && exit 1
     if ! pacman -Q base-devel;then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} base-devel
     fi
   elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'emerge -qv' ]]; then
+    [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"sys-devel/base-system\" first." && exit 1
     if ! emerge -p sys-devel/base-system;then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} sys-devel/base-system
@@ -174,13 +181,14 @@ install_building_components() {
 go_install() {
   install_building_components
 
+  [[ -z $PREFIX ]] && local PREFIX=$HOME/.cache
   if ! GO_PATH=$(type -P go);then
     [[ $EUID == 0 ]] && bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
     if [[ $EUID != 0 ]];then
       PATH="$PATH:$HOME/.cache/go/bin"
       GO_PATH=$(type -P go)
       if [ $? != 0 ];then
-        bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install --path="$HOME/.cache"
+        bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install --path="$PREFIX"
       else
         echo "INFO: GO Found, PATH=$GO_PATH"
       fi
@@ -190,9 +198,8 @@ go_install() {
   fi
 
   [[ -z $BRANCH ]] && BRANCH="main-next"
-  echo -e "INFO: Current compile branch is $BRANCH"
+  echo -e "INFO: Current compile \"releaseTag / branch\" is $BRANCH"
   BRANCH="origin/$BRANCH"
-  local PREFIX=$HOME/.cache
   if [[ $WIN == true ]];then 
     export GOOS=windows
     export GOARCH=amd64 && export GOAMD64=v3
@@ -661,6 +668,10 @@ for arg in "$@"; do
       BRANCH="${arg#*=}"
       TYPE="go"
       ;;
+    --prefix=*)
+      PREFIX="${arg#*=}"
+      TYPE="go"
+      ;;
     help)
       help
       ;;
@@ -762,7 +773,7 @@ OPTION:
     --branch=[Branch/ReleaseTag]
                               If it's specified, the scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
-    --prefix=[Path]           If it's specified, the scrpit store sing-box repository to your specified path. Default \$HOME/.cache
+    --prefix=[Path]           If it's specified, the scrpit store sing-box repository and go binary to your specified path. Default \$HOME/.cache
 "
   exit 0
 }

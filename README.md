@@ -89,7 +89,8 @@ ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
 ```
 
 ### All argument with go can be used in `compile` action
-### If theres no `go` in the machine, script will install go to `$HOME/.cache/go`
+### If theres no `go` in the machine, script will install go to `$PREFIX`
+### Use help action for more information
 **Compile sing-box without root access**
 ```
  bash -c "$(curl -L sing-box.vercel.app)" @ compile
