@@ -39,7 +39,6 @@ ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
  bash -c "$(curl -L sing-box.vercel.app)" @ remove
 ```
 ## Advance
-
 **Install sing-box Pre-release version**
 
 ```
@@ -71,7 +70,7 @@ ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
  bash -c "$(curl -L sing-box.vercel.app)" @ install --cgo
 ```
 
-**Complie sing-box for windows**
+**Compile sing-box for windows**
 
 ```
  bash -c "$(curl -L sing-box.vercel.app)" @ install --win
@@ -89,6 +88,12 @@ ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
  bash -c "$(curl -L sing-box.vercel.app)" @ install --branch=main-next
 ```
 
+### All argument with go can be used in `compile` action
+### If theres no `go` in the machine, script will install go to `$HOME/.cache/go`
+**Compile sing-box without root access**
+```
+ bash -c "$(curl -L sing-box.vercel.app)" @ compile
+```
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=chise0713/sing-box-Install&type=Timeline)](https://star-history.com/#chise0713/sing-box-Install&Timeline)

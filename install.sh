@@ -175,12 +175,24 @@ go_install() {
   install_building_components
 
   if ! GO_PATH=$(type -P go);then
-    bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
+    [[ $EUID == 0 ]] && bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
+    if [[ $EUID != 0 ]];then
+      PATH="$PATH:$HOME/.cache/go/bin"
+      GO_PATH=$(type -P go)
+      if [ $? != 0 ];then
+        bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install --path="$HOME/.cache"
+      else
+        echo "INFO: GO Found, PATH=$GO_PATH"
+      fi
+    fi
   else
     echo "INFO: GO Found, PATH=$GO_PATH"
   fi
-  [[ -z $BRANCH ]] && BRANCH="dev-next"
+
+  [[ -z $BRANCH ]] && BRANCH="main-next"
+  echo -e "INFO: Current compile branch is $BRANCH"
   BRANCH="origin/$BRANCH"
+  local PREFIX=$HOME/.cache
   if [[ $WIN == true ]];then 
     export GOOS=windows
     export GOARCH=amd64 && export GOAMD64=v3
@@ -216,22 +228,22 @@ Using custom config:
 Tags: $TAGS\
 "
   fi
-  if ! [ -d /tmp/sing-box ];then
-    cd /tmp && git clone https://github.com/SagerNet/sing-box.git && cd sing-box/ && git fetch --tags
+  if ! [ -d $PREFIX/sing-box ];then
+    cd $PREFIX && git clone https://github.com/SagerNet/sing-box.git && cd sing-box/ && git fetch --tags
     if [ $? != 0 ];then
       echo -e "${ERROR}ERROR:${END} Failed to clone repository, check your permission."
       exit 1
     fi
   else
-    if ! [ -w /tmp/sing-box ];then
-      echo -e "${ERROR}ERROR:${END} No permission to write /tmp/sing-box."
+    if ! [ -w $PREFIX/sing-box ];then
+      echo -e "${ERROR}ERROR:${END} No permission to write $PREFIX/sing-box."
     fi
-    cd /tmp/sing-box
+    cd $PREFIX/sing-box
   fi
   if grep -qoP "v\d+\.\d+\.\d+.*" <<<"$BRANCH";then
     BRANCH="${BRANCH#origin/}"
   fi
-  cd /tmp/sing-box && git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH
+  cd $PREFIX/sing-box && git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH
   if [ $? != 0 ];then
     echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
     exit 1
@@ -240,8 +252,12 @@ Tags: $TAGS\
     echo -e "Go build Failed.\nExiting."
     exit 1
   fi
-
   if [[ $WIN == false ]];then
+    if [[ $ACTION == compile ]];then
+      cp $PREFIX/sing-box/sing-box $HOME/
+      echo -e "Installed: $HOME/sing-box"
+      exit 0
+    fi
     if install -m 755 ./sing-box /usr/local/bin/sing-box;then
       echo -e "Installed: \"/usr/local/bin/sing-box\""
       echo -n 'true' > $RESTART_TEMP
@@ -654,6 +670,9 @@ for arg in "$@"; do
     install)
       ACTION="install"
       ;;
+    compile)
+      ACTION="compile"
+      ;;
     *)
       echo "Invalid argument: $arg"
       exit 1
@@ -670,6 +689,11 @@ main() {
     help
   fi
   [[ $ACTION == uninstall ]] && check_root && uninstall
+
+  if [[ $ACTION == compile ]];then
+    [[ -z $GO_TYPE ]] && GO_TYPE=default
+    go_install
+  fi
 
   if [[ $TYPE == go ]];then
     [[ -z $GO_TYPE ]] && GO_TYPE=default
@@ -726,16 +750,19 @@ OPTION:
                               If it's not specified, the scrpit will install latest release version by default.
     --go                      If it's specified, the scrpit will use go to install sing-box. 
                               If it's not specified, the scrpit will use curl by default.
+    --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
+    --user=[User]             Install sing-box in specified user, e.g, --user=root
+  remove:
+    --purge                   Remove all the sing-box files, include logs, configs, etc
+  compile: 
+  [shared with install when it is using go &  If theres no \`go\` in the machine, script will install go to \`\$HOME/.cache\`]
     --tags=[Tags]             sing-box Install tags, if you specified it, the script will use go to install sing-box, and use your custom tags. 
                               If it's not specified, the scrpit will use offcial default Tags by default.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --branch=[Branch/ReleaseTag]
                               If it's specified, the scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
-    --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
-    --user=[User]             Install sing-box in specified user, e.g, --user=root
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
-  remove:
-    --purge                   Remove all the sing-box files, include logs, configs, etc
+    --prefix=[Path]           If it's specified, the scrpit store sing-box repository to your specified path. Default \$HOME/.cache
 "
   exit 0
 }
