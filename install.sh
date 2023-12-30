@@ -14,6 +14,7 @@ WIN=false
 PURGE=false
 CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
+BRANCH=
 
 identify_the_operating_system_and_architecture() {
   if ! [[ "$(uname)" == 'Linux' ]]; then
@@ -178,7 +179,8 @@ go_install() {
   else
     echo "INFO: GO Found, PATH=$GO_PATH"
   fi
-
+  [[ -z $BRANCH ]] && BRANCH="dev-next"
+  BRANCH="origin/$BRANCH"
   if [[ $WIN == true ]];then 
     export GOOS=windows
     export GOARCH=amd64 && export GOAMD64=v3
@@ -224,17 +226,16 @@ Tags: $TAGS\
     if ! [ -w /tmp/sing-box ];then
       echo -e "${ERROR}ERROR:${END} No permission to write /tmp/sing-box."
     fi
-    if ! git remote get-url origin | grep -q "sing-box";then
-      echo -e "${ERROR}ERROR:${END} May be a wrong repository url."
-      exit 1
-    fi
-    cd /tmp/sing-box && git checkout dev-next && git fetch --tags -f && git fetch -f && git reset --hard origin/dev-next
-    if [ $? != 0 ];then
-      echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
-      exit 1
-    fi
+    cd /tmp/sing-box
   fi
-
+  if grep -qoP "v\d+\.\d+\.\d+.*" <<<"$BRANCH";then
+    BRANCH="${BRANCH#origin/}"
+  fi
+  cd /tmp/sing-box && git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH
+  if [ $? != 0 ];then
+    echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
+    exit 1
+  fi
   if ! GOARCH=$MACHINE go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty) -s -w -buildid=" ./cmd/sing-box;then
     echo -e "Go build Failed.\nExiting."
     exit 1
@@ -640,6 +641,10 @@ for arg in "$@"; do
     --version=*)
       SING_VERSION="${arg#*=}"
       ;;
+    --branch=*)
+      BRANCH="${arg#*=}"
+      TYPE="go"
+      ;;
     help)
       help
       ;;
@@ -721,9 +726,11 @@ OPTION:
                               If it's not specified, the scrpit will install latest release version by default.
     --go                      If it's specified, the scrpit will use go to install sing-box. 
                               If it's not specified, the scrpit will use curl by default.
-    --TAGS=[Tags]              sing-box Install TAGS, if you specified it, the script will use go to install sing-box, and use your custom tags. 
+    --tags=[Tags]             sing-box Install tags, if you specified it, the script will use go to install sing-box, and use your custom tags. 
                               If it's not specified, the scrpit will use offcial default Tags by default.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
+    --branch=[Branch/ReleaseTag]
+                              If it's specified, the scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
     --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
     --user=[User]             Install sing-box in specified user, e.g, --user=root
     --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
