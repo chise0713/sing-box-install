@@ -157,7 +157,7 @@ install_building_components() {
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} gcc
     fi
-  elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'pacman -Syu --noconfirm' ]]; then
+  elif [[ $PACKAGE_MANAGEMENT_INSTALL == 'pacman -Syy --noconfirm' ]]; then
     if ! pacman -Q base-devel;then
       echo -e "${WARN}WARN:${END} Building components not found, Installing."
       ${PACKAGE_MANAGEMENT_INSTALL} base-devel
@@ -193,12 +193,12 @@ go_install() {
     export CGO_ENABLED=1
   fi
   
-  if echo $TAGS |grep -oP with_lwip >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+  if grep -oqP with_lwip <<<"$TAGS" && [[ $CGO_ENABLED == 0 ]];then
     echo -e "${ERROR}ERROR:${END} Tag with_lwip \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
 
-  if echo $TAGS |grep -oP with_embedded_tor >> /dev/null && [[ $CGO_ENABLED == 0 ]];then
+  if grep -oqP with_embedded_tor <<<"$TAGS" && [[ $CGO_ENABLED == 0 ]];then
     echo -e "${ERROR}ERROR:${END} Tag with_embedded_tor \e[1mMUST HAVE environment variable CGO_ENABLED=1${END}\nExiting."
     exit 1
   fi
@@ -214,14 +214,34 @@ Using custom config:
 Tags: $TAGS\
 "
   fi
+  if ! [ -d /tmp/sing-box ];then
+    cd /tmp && git clone https://github.com/SagerNet/sing-box.git && cd sing-box/ && git fetch --tags
+    if [ $? != 0 ];then
+      echo -e "${ERROR}ERROR:${END} Failed to clone repository, check your permission."
+      exit 1
+    fi
+  else
+    if ! [ -w /tmp/sing-box ];then
+      echo -e "${ERROR}ERROR:${END} No permission to write /tmp/sing-box."
+    fi
+    if ! git remote get-url origin | grep -q "sing-box";then
+      echo -e "${ERROR}ERROR:${END} May be a wrong repository url."
+      exit 1
+    fi
+    cd /tmp/sing-box && git checkout dev-next && git fetch --tags -f && git fetch -f && git reset --hard origin/dev-next
+    if [ $? != 0 ];then
+      echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
+      exit 1
+    fi
+  fi
 
-  if ! GOARCH=$MACHINE go install -v -tags $TAGS github.com/sagernet/sing-box/cmd/sing-box@dev-next;then
-    echo -e "Go Install Failed.\nExiting."
+  if ! GOARCH=$MACHINE go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty) -s -w -buildid=" ./cmd/sing-box;then
+    echo -e "Go build Failed.\nExiting."
     exit 1
   fi
 
   if [[ $WIN == false ]];then
-    if install -m 755 /root/go/bin/sing-box /usr/local/bin/sing-box;then
+    if install -m 755 ./sing-box /usr/local/bin/sing-box;then
       echo -e "Installed: \"/usr/local/bin/sing-box\""
       echo -n 'true' > $RESTART_TEMP
     else
@@ -229,8 +249,8 @@ Tags: $TAGS\
       exit 1
     fi
   elif [[ $WIN == true ]];then
-    cp -rf /root/go/bin/windows_amd64/sing-box.exe /root/sing-box.exe
-    echo -e "Installed: /root/go/bin/sing-box.exe\nInstalled: /root/sing-box.exe"
+    cp -rf ./sing-box.exe $HOME/sing-box.exe
+    echo -e "Installed: $HOME/sing-box.exe"
     exit 0
   fi
 }
@@ -639,19 +659,20 @@ done
 
 main() {
   judgment "$@"
-  check_root
   identify_the_operating_system_and_architecture
   if [[ -z $ACTION ]];then
     echo "No action specified."
     help
   fi
-  [[ $ACTION == uninstall ]] && uninstall
+  [[ $ACTION == uninstall ]] && check_root && uninstall
 
   if [[ $TYPE == go ]];then
     [[ -z $GO_TYPE ]] && GO_TYPE=default
+    [[ $WIN == false ]] && check_root
     go_install &
     PID=$!
   else
+    check_root
     curl_install &
     PID=$!
   fi
