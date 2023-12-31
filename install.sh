@@ -115,7 +115,9 @@ identify_the_operating_system_and_architecture() {
 install_software() {
   package_name="$1"
   file_to_detect="$2"
-  type -P "$file_to_detect" > /dev/null 2>&1 && return || echo -e "${WARN}WARN:${END} $package_name not installed, installing." && sleep 1
+  type -P "$file_to_detect" > /dev/null 2>&1 && return
+  [[ $EUID != 0 ]] && echo -e "${ERROR}ERROR:${END} You need to install \"$package_name\" first." && exit 1
+  echo -e "${WARN}WARN:${END} $package_name not installed, installing." && sleep 1
   if ${PACKAGE_MANAGEMENT_INSTALL} "$package_name"; then
     echo "INFO: $package_name is installed."
   else
@@ -194,7 +196,7 @@ go_install() {
   else
     echo "INFO: GO Found, PATH=$GO_PATH"
   fi
-
+  install_software "git" "git"
   [[ -z $BRANCH ]] && BRANCH="main-next"
   echo -e "INFO: Current compile \"releaseTag / branch\" is $BRANCH"
   BRANCH="origin/$BRANCH"
