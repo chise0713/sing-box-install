@@ -184,9 +184,8 @@ go_install() {
   if ! GO_PATH=$(type -P go);then
     [[ $EUID == 0 ]] && bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
     if [[ $EUID != 0 ]];then
-      PATH="$PATH:$HOME/.cache/go/bin"
-      GO_PATH=$(type -P go)
-      if [ $? != 0 ];then
+      PATH="$PATH:$HOME/.cache/go/bin"     
+      if ! GO_PATH=$(type -P go);then
         bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install --path="$PREFIX"
       else
         echo "INFO: GO Found, PATH=$GO_PATH"
