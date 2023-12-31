@@ -179,9 +179,8 @@ install_building_components() {
 }
 
 go_install() {
-  install_building_components
-
   [[ -z $PREFIX ]] && local PREFIX=$HOME/.cache
+  ! [[ -d $PREFIX ]] && mkdir -p $PREFIX
   if ! GO_PATH=$(type -P go);then
     [[ $EUID == 0 ]] && bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
     if [[ $EUID != 0 ]];then
@@ -212,6 +211,7 @@ go_install() {
     export CGO_ENABLED=0
   elif [[ $CGO_ENABLED == 1 ]];then
     export CGO_ENABLED=1
+    install_building_components
   fi
   
   if grep -oqP with_lwip <<<"$TAGS" && [[ $CGO_ENABLED == 0 ]];then
@@ -244,6 +244,7 @@ Tags: $TAGS\
   else
     if ! [ -w $PREFIX/sing-box ];then
       echo -e "${ERROR}ERROR:${END} No permission to write $PREFIX/sing-box."
+      exit 1
     fi
     cd $PREFIX/sing-box
   fi
@@ -273,7 +274,7 @@ Tags: $TAGS\
       exit 1
     fi
   elif [[ $WIN == true ]];then
-    cp -rf ./sing-box.exe $HOME/sing-box.exe
+    cp -rf $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe
     echo -e "Installed: $HOME/sing-box.exe"
     exit 0
   fi
@@ -704,6 +705,8 @@ main() {
   if [[ $ACTION == compile ]];then
     [[ -z $GO_TYPE ]] && GO_TYPE=default
     go_install
+    echo -e "${ERROR}ERROR:${END} How did we get here."
+    exit 1
   fi
 
   if [[ $TYPE == go ]];then
