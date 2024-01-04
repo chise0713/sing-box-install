@@ -237,8 +237,7 @@ Tags: $TAGS\
 "
   fi
   if ! [ -d $PREFIX/sing-box ];then
-    cd $PREFIX && git clone https://github.com/SagerNet/sing-box.git && cd sing-box/ && git fetch --tags
-    if [ $? != 0 ];then
+    if cd $PREFIX && git clone https://github.com/SagerNet/sing-box.git ;then
       echo -e "${ERROR}ERROR:${END} Failed to clone repository, check your permission."
       exit 1
     fi
