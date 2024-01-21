@@ -25,85 +25,43 @@ ExecStart=/usr/local/bin/sing-box run -c /usr/local/etc/sing-box/%i.json
 ...
 ```
 
-## Basic Usage
-
-**Install sing-box**
+## Usage
 
 ```
- bash -c "$(curl -L sing-box.vercel.app)" @ install
+bash -c "$(curl -L sing-box.vercel.app)" @ [ACTION] [OPTION]
 ```
 
-**Remove sing-box**
+```
+Thanks @chika0801.
+usage: install.sh [ACTION] [OPTION]...
 
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ remove
-```
-## Advance
-**Install sing-box Pre-release version**
+ACTION:
+install                   Install/Update sing-box
+compile                   Compile sing-box
+remove                    Remove sing-box
+help                      Show help
+If no action is specified, then help will be selected
 
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --beta
-```
+OPTION:
+  install:
+    --beta                    Install latest Pre-release version of sing-box. 
+    --go                      If it's specified, the scrpit will use go to compile sing-box then install.
+    --version=[Version]       sing-box version tag, if you specified it, the script will install your custom version sing-box. 
+    --user=[User]             Install sing-box in specified user, e.g, --user=root
 
-
-**Install custom version of sing-box**
-
+  compile: 
+  [shared with install when it is using go &  If theres no `go` in the machine, script will install go to `$HOME/.cache`]
+    --tags=[Tags]             sing-box compile tags, the script will use your custom tags to compile sing-box. 
+                              Default https://github.com/SagerNet/sing-box/blob/dev-next/Makefile#L5
+    --prefix=[Path]           The path of scrpit store sing-box repository and go binary. 
+                              Default `$HOME/.cache`
+    --branch=[Branch/Tag]     The scrpit will compile your custom `branch` / `release tag` of sing-box.
+    --cgo                     Set `CGO_ENABLED` environment variable to 1
+    --win                     The scrpit will use go to compile windows version of sing-box. 
+  
+  remove:
+    --purge                   Remove all the sing-box files, include configs, compiletion etc.
 ```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --version=1.5.3
-```
-
-**Install sing-box using custom user**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --user=root
-```
-
-**Install sing-box Using GO**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --go
-```
-
-**Install sing-box and set environment variable `CGO_ENABLED=1` while compling**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --cgo
-```
-
-**Compile sing-box for windows**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --win
-```
-
-**Install sing-box Using GO with custom Tags**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --tag=with_gvisor,with_dhcp --go
-```
-
-**Install sing-box Using GO with custom ReleaseTag/Branch**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --branch=main-next
-```
-
-**Install sing-box Using GO with custom PREFIX**
-
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ install --prefix="~/.cache"
-```
-
-### All argument with go can be used in `compile` action
-### If theres no `go` in the machine, script will install go to `$PREFIX`
-### Use help action for more information
-**Compile sing-box without root access**
-```
- bash -c "$(curl -L sing-box.vercel.app)" @ compile
-```
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=chise0713/sing-box-Install&type=Timeline)](https://star-history.com/#chise0713/sing-box-Install&Timeline)
 
 ## Thanks
 [@chika0801](https://github.com/chika0801)
