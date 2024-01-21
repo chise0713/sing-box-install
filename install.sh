@@ -515,12 +515,11 @@ install_service() {
 install_config() {
   if [ ! -d /usr/local/etc/sing-box ];then
     install_directory /usr/local/etc/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
-    install /dev/null /usr/local/etc/sing-box/config.json 700 $INSTALL_USER $INSTALL_GROUP 
-  elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
+    install /dev/null /usr/local/etc/sing-box/config.json 700 $INSTALL_USER $INSTALL_GROUP
   fi
+  chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
   if [ ! -d /var/lib/sing-box ];then
-    install /var/lib/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
+    install_directory /var/lib/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
   fi
   if [ -d /usr/local/share/sing-box ];then
     if mv /usr/local/share/sing-box /var/lib/sing-box -T;then
@@ -530,9 +529,7 @@ install_config() {
       exit 1
     fi
   fi
-  if ! ls /var/lib/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
-    chown -R $INSTALL_USER:$INSTALL_GROUP /var/lib/sing-box
-  fi
+  chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
 }
 
 install_user() {
