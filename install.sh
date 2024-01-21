@@ -126,6 +126,44 @@ install_software() {
   fi
 }
 
+install_file() {
+  if ! [[ -z "$3" ]];then
+    local SOURCE=$1 DEST=$2 METHO=$3
+  elif [[ -z "$3" ]];then
+    STDIN=$(mktemp)
+    cat /dev/stdin > $STDIN
+    local SOURCE=$STDIN DEST=$1 METHO=$2
+  else
+    exit 1
+  fi
+
+  if install $SOURCE $DEST -m $METHO;then
+    echo -e "Installed: \"$DEST\""
+  else
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"$DEST\""
+    exit 1
+  fi
+}
+
+install_directory() {
+  if [[ ! -z "$2" ]];then
+    DIRECTORY=$1 METHO=$2
+    if [[ ! -z "$4" ]];then
+      OWNER=$3 GROUP=$4
+    else
+      OWNER=root GROUP=root
+    fi
+  else
+    exit 1
+  fi
+  if install -dm $METHO $DIRECTORY;then
+    echo -e "Installed: \"$DEST\""
+  else
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"$DEST\""
+    exit 1
+  fi
+}
+
 check_root() {
   if [[ $EUID -ne 0 ]]; then
     echo -e "${ERROR}ERROR:${END} You have to use root to run this script"
@@ -202,10 +240,20 @@ go_install() {
   BRANCH="origin/$BRANCH"
   if [[ $WIN == true ]];then 
     export GOOS=windows
-    export GOARCH=amd64 && export GOAMD64=v3
+    export GOARCH=amd64
+    export GOAMD64=v3
   elif [[ $WIN == false ]];then
-    export GOOS=linux
-    [[ $MACHINE == amd64 ]] && export GOAMD64=v2
+    if [[ $MACHINE == amd64 ]];then
+      case "$(lscpu)" in
+        *avx2*)
+        export GOAMD=v3
+        ;;
+        *sse4_2*)
+        export GOAMD=v2
+        ;;
+      esac
+    fi
+    export GOARCH=$MACHINE
   fi
 
   if [[ $CGO_ENABLED == 0 ]];then
@@ -237,7 +285,7 @@ Tags: $TAGS\
 "
   fi
   if ! [ -d $PREFIX/sing-box ];then
-    if cd $PREFIX && git clone https://github.com/SagerNet/sing-box.git ;then
+    if ! cd $PREFIX && ! git clone https://github.com/SagerNet/sing-box.git ;then
       echo -e "${ERROR}ERROR:${END} Failed to clone repository, check your permission."
       exit 1
     fi
@@ -256,23 +304,16 @@ Tags: $TAGS\
     echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
     exit 1
   fi
-  if ! GOARCH=$MACHINE go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty) -s -w -buildid=" ./cmd/sing-box;then
+  if ! go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty) -s -w -buildid=" ./cmd/sing-box;then
     echo -e "Go build Failed.\nExiting."
     exit 1
   fi
   if [[ $WIN == false ]];then
     if [[ $ACTION == compile ]];then
-      cp $PREFIX/sing-box/sing-box $HOME/
-      echo -e "Installed: $HOME/sing-box"
+      install_file $PREFIX/sing-box/sing-box $HOME/sing-box 755
       exit 0
     fi
-    if install -m 755 ./sing-box /usr/local/bin/sing-box;then
-      echo -e "Installed: \"/usr/local/bin/sing-box\""
-      echo -n 'true' > $RESTART_TEMP
-    else
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/bin/sing-box\""
-      exit 1
-    fi
+  install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755
   elif [[ $WIN == true ]];then
     cp -rf $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe
     echo -e "Installed: $HOME/sing-box.exe"
@@ -300,7 +341,7 @@ Try to use \"--type=go\" to install\
     elif [[ $BETA == true ]];then
       SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+.*-linux-$CURL_MACHINE"| sed "s/-linux-$CURL_MACHINE$/-zzzzz-linux-$CURL_MACHINE/" | sort -Vru | sed "s/-zzzzz-linux-$CURL_MACHINE$/-linux-$CURL_MACHINE/" | head -n 1)
       echo "Newest version found: $SING_VERSION"
-      CURL_TAG=$(echo $SING_VERSION | (grep -oP "\d+\.\d+\.\d+.*\.\d+" || grep -oP "\d+\.\d+\.\d+"))
+      CURL_TAG=$(echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+.*\.\d+" || echo $SING_VERSION | grep -oP "\d+\.\d+\.\d+")
     fi
   else
     CURL_TAG=$SING_VERSION
@@ -315,7 +356,7 @@ Try to use \"--type=go\" to install\
   fi
 
   if [ -f /usr/local/bin/sing-box ];then
-    CURRENT_SING_VERSION=$(sing-box version | (grep -oP "\d+\.\d+\.\d+.*"|| grep -oP "\d+\.\d+\.\d+") | head -1)
+    CURRENT_SING_VERSION=$(sing-box version | grep -oP "sing-box version \d+\.\d+\.\d+.*" | grep -oP "\d+\.\d+\.\d+.*")
     if echo "$SING_VERSION" | grep "sing-box-$CURRENT_SING_VERSION-linux-$CURL_MACHINE">/dev/null;then
       echo "INFO: Your sing-box is up to date"
       return 0
@@ -329,13 +370,8 @@ Try to use \"--type=go\" to install\
   fi
 
   tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
-  if install -m 755 /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box;then
-    echo -e "Installed: \"/usr/local/bin/sing-box\""
-    echo -n 'true' > $RESTART_TEMP
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/bin/sing-box\""
-    exit 1
-  fi
+  install_file /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box 755
+  echo true > $RESTART_TEMP
 }
 
 service_control() {
@@ -447,43 +483,18 @@ install_service() {
     fi
   fi
 
-  if service_file sing-box > /etc/systemd/system/sing-box.service ;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box.service\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service\""
-    exit 1
+  service_file sing-box | install_file /etc/systemd/system/sing-box.service 644
+  if ! [ -d /etc/systemd/system/sing-box.service.d/ ];then
+    install_directory /etc/systemd/system/sing-box.service.d/ 744
   fi
-  if mkdir -p /etc/systemd/system/sing-box.service.d/;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box.service.d/\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service.d/\""
-    exit 1
-  fi
-  if service_file sing-box-donot_touch > /etc/systemd/system/sing-box.service.d/10-donot_touch.conf ;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box.service.d/10-donot_touch.conf\""
-    exit 1
-  fi
+  service_file sing-box-donot_touch | install_file /etc/systemd/system/sing-box.service.d/10-donot_touch.conf 644
 
-  if service_file sing-box@ > /etc/systemd/system/sing-box@.service;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box@.service\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service\""
-    exit 1
+  service_file sing-box@ | install_file /etc/systemd/system/sing-box@.service 644
+  if ! [ -d /etc/systemd/system/sing-box@.service.d/ ];then
+    install_directory /etc/systemd/system/sing-box@.service.d/ 744
   fi
-  if mkdir -p /etc/systemd/system/sing-box@.service.d/;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box@.service.d/\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service.d/\""
-    exit 1
-  fi
-  if service_file sing-box@-donot_touch > /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf ;then
-    echo -e "Installed: \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
-  else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"/etc/systemd/system/sing-box@.service.d/10-donot_touch.conf\""
-    exit 1
-  fi
+  service_file sing-box@-donot_touch | install_file /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf 644
+
   
   systemctl daemon-reload
 
@@ -503,29 +514,13 @@ install_service() {
 
 install_config() {
   if [ ! -d /usr/local/etc/sing-box ];then
-    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /usr/local/etc/sing-box/;then
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box/\""
-      exit 1
-    else
-      echo "Installed: \"/usr/local/etc/sing-box/\""
-    fi
-    if ! install -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /dev/null /usr/local/etc/sing-box/config.json;then
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/local/etc/sing-box/config.json\""
-      exit 1
-    else
-      echo -e "Installed: \"/usr/local/etc/sing-box/config.json\""
-      echo -e "{\n\n}" > /usr/local/etc/sing-box/config.json
-    fi
+    install_directory /usr/local/etc/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
+    install /dev/null /usr/local/etc/sing-box/config.json 700 $INSTALL_USER $INSTALL_GROUP 
   elif ! ls /usr/local/etc/sing-box -dl | grep -E "$INSTALL_USER $INSTALL_GROUP" >/dev/null;then
     chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
   fi
   if [ ! -d /var/lib/sing-box ];then
-    if ! install -d -m 700 -o $INSTALL_USER -g $INSTALL_GROUP /var/lib/sing-box/;then
-      echo -e "${ERROR}ERROR:${END} Failed to Install \"/var/lib/sing-box/\""
-      exit 1
-    else
-      echo -e "Installed: \"/var/lib/sing-box/\""
-    fi
+    install /var/lib/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
   fi
   if [ -d /usr/local/share/sing-box ];then
     if mv /usr/local/share/sing-box /var/lib/sing-box -T;then
@@ -552,34 +547,13 @@ install_user() {
 
 install_compiletion() {
   if ! [ -f /usr/share/bash-completion/completions/sing-box ];then
-    if \
-      sing-box completion bash |\
-        install -Dm644 /dev/stdin "/usr/share/bash-completion/completions/sing-box";then
-      echo -e "Installed: \"/usr/share/bash-completion/completions/sing-box\""
-    else
-        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/bash-completion/completions/sing-box\""
-        exit 1
-    fi
+    sing-box completion bash | install_file "/usr/share/bash-completion/completions/sing-box" 644
   fi
   if ! [ -f /usr/share/fish/vendor_completions.d/sing-box.fish ];then
-    if \
-      sing-box completion fish |\
-        install -Dm644 /dev/stdin "/usr/share/fish/vendor_completions.d/sing-box.fish";then
-      echo -e "Installed: \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
-    else
-        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/fish/vendor_completions.d/sing-box.fish\""
-        exit 1
-    fi
+      sing-box completion fish | install_file "/usr/share/fish/vendor_completions.d/sing-box.fish" 644
   fi
   if ! [ -f /usr/share/zsh/site-functions/_sing-box ];then
-    if \
-      sing-box completion zsh |\
-        install -Dm644 /dev/stdin "/usr/share/zsh/site-functions/_sing-box";then
-      echo -e "Installed: \"/usr/share/zsh/site-functions/_sing-box\""
-    else
-        echo -e "${ERROR}ERROR:${END} Failed to Install \"/usr/share/zsh/site-functions/_sing-box\""
-        exit 1
-    fi
+      sing-box completion zsh | install_file "/usr/share/zsh/site-functions/_sing-box" 644
   fi
 }
 
@@ -754,29 +728,30 @@ usage: install.sh [ACTION] [OPTION]...
 
 ACTION:
 install                   Install/Update sing-box
+compile                   Compile sing-box
 remove                    Remove sing-box
 help                      Show help
 If no action is specified, then help will be selected
 
 OPTION:
   install:
-    --beta                    If it's specified, the scrpit will install latest Pre-release version of sing-box. 
-                              If it's not specified, the scrpit will install latest release version by default.
-    --go                      If it's specified, the scrpit will use go to install sing-box. 
-                              If it's not specified, the scrpit will use curl by default.
-    --version=[Version]       sing-box Install version, if you specified it, the script will install your custom version sing-box. 
+    --beta                    Install latest Pre-release version of sing-box. 
+    --go                      If it's specified, the scrpit will use go to compile sing-box then install.
+    --version=[Version]       sing-box version tag, if you specified it, the script will install your custom version sing-box. 
     --user=[User]             Install sing-box in specified user, e.g, --user=root
-  remove:
-    --purge                   Remove all the sing-box files, include logs, configs, etc
+
   compile: 
   [shared with install when it is using go &  If theres no \`go\` in the machine, script will install go to \`\$HOME/.cache\`]
-    --tags=[Tags]             sing-box Install tags, if you specified it, the script will use go to install sing-box, and use your custom tags. 
-                              If it's not specified, the scrpit will use offcial default Tags by default.
+    --tags=[Tags]             sing-box compile tags, the script will use your custom tags to compile sing-box. 
+                              Default https://github.com/SagerNet/sing-box/blob/dev-next/Makefile#L5
+    --prefix=[Path]           The path of scrpit store sing-box repository and go binary. 
+                              Default \`\$HOME/.cache\`
+    --branch=[Branch/Tag]     The scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
-    --branch=[Branch/ReleaseTag]
-                              If it's specified, the scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
-    --win                     If it's specified, the scrpit will use go to compile windows version of sing-box. 
-    --prefix=[Path]           If it's specified, the scrpit store sing-box repository and go binary to your specified path. Default \$HOME/.cache
+    --win                     The scrpit will use go to compile windows version of sing-box. 
+  
+  remove:
+    --purge                   Remove all the sing-box files, include configs, compiletion etc.
 "
   exit 0
 }
