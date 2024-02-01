@@ -127,17 +127,21 @@ install_software() {
 }
 
 install_file() {
-  if ! [[ -z "$3" ]];then
-    local SOURCE=$1 DEST=$2 METHO=$3
-  elif [[ -z "$3" ]];then
+  if [[ "$1" == "/dev/stdin" ]];then
     STDIN=$(mktemp)
     cat /dev/stdin > $STDIN
-    local SOURCE=$STDIN DEST=$1 METHO=$2
+    local SOURCE=$STDIN DEST=$2 METHO=$3
   else
-    exit 1
+    local SOURCE=$1 DEST=$2 METHO=$3
   fi
 
-  if install $SOURCE $DEST -m $METHO;then
+  if [[ ! -z "$5" ]];then
+    OWNER=$4 GROUP=$5
+  else
+    OWNER=root GROUP=root
+  fi
+
+  if install $SOURCE $DEST -m $METHO -o $OWNER -g $GROUP;then
     echo -e "Installed: \"$DEST\""
   else
     echo -e "${ERROR}ERROR:${END} Failed to Install \"$DEST\""
@@ -156,10 +160,11 @@ install_directory() {
   else
     exit 1
   fi
-  if install -dm $METHO $DIRECTORY;then
-    echo -e "Installed: \"$DEST\""
+
+  if install -dm $METHO $DIRECTORY -o $OWNER -g $GROUP;then
+    echo -e "Installed: \"$DIRECTORY\""
   else
-    echo -e "${ERROR}ERROR:${END} Failed to Install \"$DEST\""
+    echo -e "${ERROR}ERROR:${END} Failed to Install \"$DIRECTORY\""
     exit 1
   fi
 }
@@ -315,8 +320,7 @@ Tags: $TAGS\
     fi
   install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755
   elif [[ $WIN == true ]];then
-    cp -rf $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe
-    echo -e "Installed: $HOME/sing-box.exe"
+    install_file $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe 755
     exit 0
   fi
 }
@@ -483,17 +487,17 @@ install_service() {
     fi
   fi
 
-  service_file sing-box | install_file /etc/systemd/system/sing-box.service 644
+  service_file sing-box | install_file /dev/stdin /etc/systemd/system/sing-box.service 644
   if ! [ -d /etc/systemd/system/sing-box.service.d/ ];then
     install_directory /etc/systemd/system/sing-box.service.d/ 744
   fi
-  service_file sing-box-donot_touch | install_file /etc/systemd/system/sing-box.service.d/10-donot_touch.conf 644
+  service_file sing-box-donot_touch | install_file /dev/stdin /etc/systemd/system/sing-box.service.d/10-donot_touch.conf 644
 
-  service_file sing-box@ | install_file /etc/systemd/system/sing-box@.service 644
+  service_file sing-box@ | install_file /dev/stdin /etc/systemd/system/sing-box@.service 644
   if ! [ -d /etc/systemd/system/sing-box@.service.d/ ];then
     install_directory /etc/systemd/system/sing-box@.service.d/ 744
   fi
-  service_file sing-box@-donot_touch | install_file /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf 644
+  service_file sing-box@-donot_touch | install_file /dev/stdin /etc/systemd/system/sing-box@.service.d/10-donot_touch.conf 644
 
   
   systemctl daemon-reload
@@ -515,12 +519,9 @@ install_service() {
 install_config() {
   if [ ! -d /usr/local/etc/sing-box ];then
     install_directory /usr/local/etc/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
-    install /dev/null /usr/local/etc/sing-box/config.json 700 $INSTALL_USER $INSTALL_GROUP
+    echo -e "{\n\n}" | install_file /dev/stdin /usr/local/etc/sing-box/config.json 700 $INSTALL_USER $INSTALL_GROUP
   fi
-  chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
-  if [ ! -d /var/lib/sing-box ];then
-    install_directory /var/lib/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
-  fi
+
   if [ -d /usr/local/share/sing-box ];then
     if mv /usr/local/share/sing-box /var/lib/sing-box -T;then
       echo -e "${WARN}WARN:${END} Migrated: \"/usr/local/share/sing-box\" to \"/var/lib/sing-box\""
@@ -528,6 +529,10 @@ install_config() {
       echo -e "${ERROR}ERROR:${END} Failed to migrate \"/usr/local/share/sing-box\" to \"/var/lib/sing-box\""
       exit 1
     fi
+  fi
+
+  if [ ! -d /var/lib/sing-box ];then
+    install_directory /var/lib/sing-box/ 700 $INSTALL_USER $INSTALL_GROUP
   fi
   chown -R $INSTALL_USER:$INSTALL_GROUP /usr/local/etc/sing-box/
 }
@@ -544,13 +549,13 @@ install_user() {
 
 install_compiletion() {
   if ! [ -f /usr/share/bash-completion/completions/sing-box ];then
-    sing-box completion bash | install_file "/usr/share/bash-completion/completions/sing-box" 644
+    sing-box completion bash | install_file "/dev/stdin" "/usr/share/bash-completion/completions/sing-box" 644
   fi
   if ! [ -f /usr/share/fish/vendor_completions.d/sing-box.fish ];then
-      sing-box completion fish | install_file "/usr/share/fish/vendor_completions.d/sing-box.fish" 644
+      sing-box completion fish | install_file "/dev/stdin" "/usr/share/fish/vendor_completions.d/sing-box.fish" 644
   fi
   if ! [ -f /usr/share/zsh/site-functions/_sing-box ];then
-      sing-box completion zsh | install_file "/usr/share/zsh/site-functions/_sing-box" 644
+      sing-box completion zsh | install_file "/dev/stdin" "/usr/share/zsh/site-functions/_sing-box" 644
   fi
 }
 
