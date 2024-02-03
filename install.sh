@@ -16,6 +16,8 @@ CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
 BRANCH=
 PREFIX=
+NEED_REMOVE=( "$RESTART_TEMP" )
+NEED_REMOVE_TEMP=$(mktemp)
 
 identify_the_operating_system_and_architecture() {
   if ! [[ "$(uname)" == 'Linux' ]]; then
@@ -146,6 +148,10 @@ install_file() {
   else
     echo -e "${ERROR}ERROR:${END} Failed to Install \"$DEST\""
     exit 1
+  fi
+
+  if ! [[ -z $STDIN ]];then
+    echo $STDIN >> $NEED_REMOVE_TEMP
   fi
 }
 
@@ -559,6 +565,19 @@ install_compiletion() {
   fi
 }
 
+remove_files() {
+  for file in "${NEED_REMOVE[@]}"; do
+      if [[ -d $file ]] || [[ -f $file ]];then
+        rm -rf $file || (echo -e "${ERROR}ERROR:${END} Failed remove $file" && exit 1)
+        if echo $file | grep -E ".*/$">/dev/null ;then
+          echo "Removed directory \"$file\""
+        else
+          echo "Removed \"$file\""
+        fi
+      fi
+  done
+}
+
 uninstall() {
   if ! ([ -f /etc/systemd/system/sing-box.service ] || [ -f /usr/local/bin/sing-box ]) ;then
     echo -e "sing-box is not installed.\nExiting."
@@ -586,18 +605,7 @@ uninstall() {
   if [[ $PURGE == true ]];then
     NEED_REMOVE+=( '/usr/local/etc/sing-box/' '/var/lib/sing-box/' '/usr/local/share/sing-box' )
   fi
-
-  for file in "${NEED_REMOVE[@]}"; do
-      if [[ -d $file ]] || [[ -f $file ]];then
-        rm -rf $file || (echo -e "${ERROR}ERROR:${END} Failed remove $file" && exit 1)
-        if echo $file | grep -E ".*/$">/dev/null ;then
-          echo "Removed directory \"$file\""
-        else
-          echo "Removed \"$file\""
-        fi
-      fi
-  done
-
+  remove_files
   if getent passwd sing-box>/dev/null;then
     SING_BOX_UID=$(id sing-box -u) && SING_BOX_GID=$(id sing-box -g)
     echo -e "Deleting group 'sing-box' with GID $SING_BOX_GID."
@@ -718,7 +726,15 @@ main() {
   if [[ $RESTART == true ]];then
     service_control restart
   fi
-  rm -f $RESTART_TEMP
+  
+  for tmp in $(cat $NEED_REMOVE_TEMP); do
+    NEED_REMOVE+=( "$tmp" )
+  done
+  NEED_REMOVE+=( "$NEED_REMOVE_TEMP" )
+  echo -e "INFO: Removing temporary files."
+  remove_files
+
+  echo -e "INFO: sing-box is installed."
 
   exit 0
 }
