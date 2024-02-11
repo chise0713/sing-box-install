@@ -58,9 +58,11 @@ OPTION:
     --branch=[Branch/Tag]     The scrpit will compile your custom `branch` / `release tag` of sing-box.
     --cgo                     Set `CGO_ENABLED` environment variable to 1
     --win                     The scrpit will use go to compile windows version of sing-box. 
+    --rm                      Remove temporary files, include sing-box repository and go binary.
   
   remove:
     --purge                   Remove all the sing-box files, include configs, compiletion etc.
+
 ```
 
 ## Thanks

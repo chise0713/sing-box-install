@@ -16,8 +16,9 @@ CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
 BRANCH=
 PREFIX=
-NEED_REMOVE=( "$RESTART_TEMP" )
-NEED_REMOVE_TEMP=$(mktemp)
+NEED_REMOVE_TEMP="$(mktemp)"
+NEED_REMOVE=( "$RESTART_TEMP" "$NEED_REMOVE_TEMP" )
+REMOVE_TEMP=false
 
 identify_the_operating_system_and_architecture() {
   if ! [[ "$(uname)" == 'Linux' ]]; then
@@ -140,7 +141,7 @@ install_file() {
   if [[ ! -z "$5" ]];then
     OWNER=$4 GROUP=$5
   else
-    OWNER=root GROUP=root
+    OWNER=$INSTALL_USER GROUP=$INSTALL_GROUP
   fi
 
   if install $SOURCE $DEST -m $METHO -o $OWNER -g $GROUP;then
@@ -161,7 +162,7 @@ install_directory() {
     if [[ ! -z "$4" ]];then
       OWNER=$3 GROUP=$4
     else
-      OWNER=root GROUP=root
+      OWNER=$INSTALL_USER GROUP=$INSTALL_GROUP
     fi
   else
     exit 1
@@ -232,6 +233,11 @@ install_building_components() {
 go_install() {
   [[ -z $PREFIX ]] && local PREFIX=$HOME/.cache
   ! [[ -d $PREFIX ]] && mkdir -p $PREFIX
+  if [[ $REMOVE_TEMP == true ]];then
+    NEED_REMOVE+=( "$PREFIX/sing-box" "$PREFIX/go" )
+    remove_files
+    exit 0
+  fi
   if ! GO_PATH=$(type -P go);then
     [[ $EUID == 0 ]] && bash -c "$(curl -L https://github.com/chise0713/go-install/raw/master/install.sh)" @ install
     if [[ $EUID != 0 ]];then
@@ -310,8 +316,11 @@ Tags: $TAGS\
   if grep -qoP "v\d+\.\d+\.\d+.*" <<<"$BRANCH";then
     BRANCH="${BRANCH#origin/}"
   fi
-  cd $PREFIX/sing-box && git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH
-  if [ $? != 0 ];then
+  if ! cd $PREFIX/sing-box;then
+    echo -e "${ERROR}ERROR:${END} Failed to cd $PREFIX/sing-box"
+    exit 1
+  fi
+  if ! (git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH);then
     echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
     exit 1
   fi
@@ -321,12 +330,12 @@ Tags: $TAGS\
   fi
   if [[ $WIN == false ]];then
     if [[ $ACTION == compile ]];then
-      install_file $PREFIX/sing-box/sing-box $HOME/sing-box 755
+      install_file $PREFIX/sing-box/sing-box $HOME/sing-box 755 $CURRENT_USER $CURRENT_GROUP
       exit 0
     fi
-  install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755
+  install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755 $CURRENT_USER $CURRENT_GROUP
   elif [[ $WIN == true ]];then
-    install_file $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe 755
+    install_file $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe 755 $CURRENT_USER $CURRENT_GROUP
     exit 0
   fi
 }
@@ -553,6 +562,15 @@ install_user() {
   fi
 }
 
+get_user() {
+  if [[ -z $CURRENT_USER ]];then
+    CURRENT_USER=$(whoami | awk '{print $1}')
+  fi
+  if [[ -z $CURRENT_GROUP ]];then
+    CURRENT_GROUP=$(groups $CURRENT_USER | awk '{printf $1}')
+  fi
+}
+
 install_compiletion() {
   if ! [ -f /usr/share/bash-completion/completions/sing-box ];then
     sing-box completion bash | install_file "/dev/stdin" "/usr/share/bash-completion/completions/sing-box" 644
@@ -669,6 +687,9 @@ for arg in "$@"; do
     compile)
       ACTION="compile"
       ;;
+    --rm)
+      REMOVE_TEMP=true
+      ;;
     *)
       echo "Invalid argument: $arg"
       exit 1
@@ -679,6 +700,7 @@ done
 
 main() {
   judgment "$@"
+  get_user
   identify_the_operating_system_and_architecture
   if [[ -z $ACTION ]];then
     echo "No action specified."
@@ -767,6 +789,7 @@ OPTION:
     --branch=[Branch/Tag]     The scrpit will compile your custom \`branch\` / \`release tag\` of sing-box.
     --cgo                     Set \`CGO_ENABLED\` environment variable to 1
     --win                     The scrpit will use go to compile windows version of sing-box. 
+    --rm                      Remove temporary files, include sing-box repository and go binary.
   
   remove:
     --purge                   Remove all the sing-box files, include configs, compiletion etc.
