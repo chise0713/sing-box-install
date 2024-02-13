@@ -16,6 +16,8 @@ CGO_ENABLED=0
 RESTART_TEMP=$(mktemp)
 BRANCH=
 PREFIX=
+CURRENT_USER=
+CURRENT_GROUP=
 NEED_REMOVE_TEMP="$(mktemp)"
 NEED_REMOVE=( "$RESTART_TEMP" "$NEED_REMOVE_TEMP" )
 REMOVE_TEMP=false
@@ -141,7 +143,7 @@ install_file() {
   if [[ ! -z "$5" ]];then
     OWNER=$4 GROUP=$5
   else
-    OWNER=$INSTALL_USER GROUP=$INSTALL_GROUP
+    OWNER=$CURRENT_USER GROUP=$CURRENT_GROUP
   fi
 
   if install $SOURCE $DEST -m $METHO -o $OWNER -g $GROUP;then
@@ -162,7 +164,7 @@ install_directory() {
     if [[ ! -z "$4" ]];then
       OWNER=$3 GROUP=$4
     else
-      OWNER=$INSTALL_USER GROUP=$INSTALL_GROUP
+      OWNER=$CURRENT_USER GROUP=$CURRENT_GROUP
     fi
   else
     exit 1
@@ -302,8 +304,12 @@ Tags: $TAGS\
 "
   fi
   if ! [ -d $PREFIX/sing-box ];then
-    if ! cd $PREFIX && ! git clone https://github.com/SagerNet/sing-box.git ;then
+    if !(cd $PREFIX && git clone https://github.com/SagerNet/sing-box.git) ;then
       echo -e "${ERROR}ERROR:${END} Failed to clone repository, check your permission."
+      exit 1
+    fi
+    if ! cd $PREFIX/sing-box;then
+      echo -e "${ERROR}ERROR:${END} Failed to cd $PREFIX/sing-box"
       exit 1
     fi
   else
@@ -316,26 +322,24 @@ Tags: $TAGS\
   if grep -qoP "v\d+\.\d+\.\d+.*" <<<"$BRANCH";then
     BRANCH="${BRANCH#origin/}"
   fi
-  if ! cd $PREFIX/sing-box;then
-    echo -e "${ERROR}ERROR:${END} Failed to cd $PREFIX/sing-box"
-    exit 1
-  fi
   if ! (git checkout -b tmp 2>/dev/null || git checkout tmp && git fetch origin --tags -f && git fetch origin -f && git reset --hard $BRANCH);then
     echo -e "${ERROR}ERROR:${END} Failed to fetch and update repository."
     exit 1
   fi
-  if ! go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty) -s -w -buildid=" ./cmd/sing-box;then
-    echo -e "Go build Failed.\nExiting."
+  if ! go build -v -tags $TAGS -trimpath -ldflags "-X github.com/sagernet/sing-box/constant.Version=$(git describe --tags --always --dirty|sed 's/v//g') -s -w -buildid=" ./cmd/sing-box;then
+    echo -e "${ERROR}ERROR:${END} Go build Failed.\nExiting."
     exit 1
   fi
   if [[ $WIN == false ]];then
     if [[ $ACTION == compile ]];then
-      install_file $PREFIX/sing-box/sing-box $HOME/sing-box 755 $CURRENT_USER $CURRENT_GROUP
+      install_file $PREFIX/sing-box/sing-box $HOME/sing-box 755
+      remove_files
       exit 0
     fi
-  install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755 $CURRENT_USER $CURRENT_GROUP
+  install_file $PREFIX/sing-box/sing-box /usr/local/bin/sing-box 755
   elif [[ $WIN == true ]];then
-    install_file $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe 755 $CURRENT_USER $CURRENT_GROUP
+    install_file $PREFIX/sing-box/sing-box.exe $HOME/sing-box.exe 755
+    remove_files
     exit 0
   fi
 }
@@ -376,7 +380,7 @@ Try to use \"--type=go\" to install\
 
   if [ -f /usr/local/bin/sing-box ];then
     CURRENT_SING_VERSION=$(sing-box version | grep -oP "sing-box version \d+\.\d+\.\d+.*" | grep -oP "\d+\.\d+\.\d+.*")
-    if echo "$SING_VERSION" | grep "sing-box-$CURRENT_SING_VERSION-linux-$CURL_MACHINE">/dev/null;then
+    if grep -q "sing-box-$CURRENT_SING_VERSION-linux-$CURL_MACHINE" <<< "$SING_VERSION";then
       echo "INFO: Your sing-box is up to date"
       return 0
     fi
@@ -390,6 +394,7 @@ Try to use \"--type=go\" to install\
 
   tar -xzf /tmp/$SING_VERSION.tar.gz -C /tmp
   install_file /tmp/$SING_VERSION/sing-box /usr/local/bin/sing-box 755
+  echo -e "/tmp/$SING_VERSION.tar.gz\n/tmp/$SING_VERSION/" >> $NEED_REMOVE_TEMP
   echo true > $RESTART_TEMP
 }
 
