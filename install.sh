@@ -357,6 +357,11 @@ Try to use \"--type=go\" to install\
     exit 1
   fi
 
+  if [[ "$(curl https://api.github.com/)" == *"\"message\":\"API rate limit exceeded for"* ]];then
+    echo -e "${ERROR}ERROR:${END} API rate limit exceeded"
+    exit 1
+  fi
+
   if [[ -z $SING_VERSION ]];then
     if [[ $BETA == false ]];then
       SING_VERSION=$(curl https://api.github.com/repos/SagerNet/sing-box/releases | grep -oP "sing-box-\d+\.\d+\.\d+-linux-$CURL_MACHINE"| sort -Vru | head -n 1)
