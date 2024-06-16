@@ -583,13 +583,16 @@ get_user() {
 
 install_compiletion() {
   if ! [ -f /usr/share/bash-completion/completions/sing-box ];then
+    mkdir -p /usr/share/bash-completion/completions/
     sing-box completion bash | install_file "/dev/stdin" "/usr/share/bash-completion/completions/sing-box" 644
   fi
   if ! [ -f /usr/share/fish/vendor_completions.d/sing-box.fish ];then
-      sing-box completion fish | install_file "/dev/stdin" "/usr/share/fish/vendor_completions.d/sing-box.fish" 644
+    mkdir -p /usr/share/fish/vendor_completions.d/
+    sing-box completion fish | install_file "/dev/stdin" "/usr/share/fish/vendor_completions.d/sing-box.fish" 644
   fi
   if ! [ -f /usr/share/zsh/site-functions/_sing-box ];then
-      sing-box completion zsh | install_file "/dev/stdin" "/usr/share/zsh/site-functions/_sing-box" 644
+    mkdir -p /usr/share/zsh/site-functions/
+    sing-box completion zsh | install_file "/dev/stdin" "/usr/share/zsh/site-functions/_sing-box" 644
   fi
 }
 
@@ -623,6 +626,8 @@ uninstall() {
   NEED_REMOVE+=(
     '/etc/systemd/system/sing-box.service'
     '/etc/systemd/system/sing-box@.service'
+    '/etc/systemd/system/sing-box.service.d/'
+    '/etc/systemd/system/sing-box@.service.d/'
     '/usr/local/bin/sing-box'
     '/usr/lib/sysusers.d/sing-box.conf'
     '/usr/share/bash-completion/completions/sing-box'
