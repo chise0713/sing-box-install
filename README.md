@@ -1,6 +1,11 @@
-# sing-box-install
+# sing-box-install (Archived)
 
-Bash script for installing sing-box in operating systems such as Arch / CentOS / Debian / OpenSUSE that support systemd.
+
+> [!IMPORTANT]  
+> This installation script is outdated. Please use the official package manager installation method.
+> 
+> Refer to the official documentation for installation:
+> - [Official Package Manager Installation](https://sing-box.sagernet.org/installation/package-manager/)
 
 [Filesystem Hierarchy Standard (FHS)](https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard) 
 
